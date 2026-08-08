@@ -21,11 +21,11 @@ final class CameraProviderSource: NSObject, CMIOExtensionProviderSource {
     }
 
     func connect(to client: CMIOExtensionClient) throws {
-        extensionLogger.info("client connected: \(client.signingID ?? "unknown", privacy: .public)")
+        extensionLogger.info("client connected: \(client.signingID ?? "unknown", privacy: .public) pid=\(client.pid)")
     }
 
     func disconnect(from client: CMIOExtensionClient) {
-        extensionLogger.info("client disconnected: \(client.signingID ?? "unknown", privacy: .public)")
+        extensionLogger.info("client disconnected: \(client.signingID ?? "unknown", privacy: .public) pid=\(client.pid)")
     }
 
     var availableProperties: Set<CMIOExtensionProperty> {

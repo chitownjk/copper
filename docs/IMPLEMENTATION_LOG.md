@@ -9,7 +9,9 @@ and only the repo name and window titles would need to change.
 
 **Status: M1 complete and verified in the shipping binary. M2 well underway —
 E3.1 (Xcode workspace) and E1.4 (SpeechAnalyzer) are done; the E5.1 tracer
-bullet is one System Settings approval click away from proven.**
+bullet is proven (test pattern rendering in a client app) and the sink-stream
+transport is proven headless (300/300 frames app→extension; rendered-relay
+eyeball check pending).**
 The app has no external-binary dependencies — `grep -rn "Process()\|/opt/homebrew"
 App/Sources Packages/` matches nothing but comments. On a machine with Apple
 Intelligence it records → mixes → transcribes → summarizes with zero configuration.
@@ -166,8 +168,65 @@ our own CMIO extension, selectable as a system camera — is done.
 Deliberately NOT yet exercised: the uninstall path
 (`--uninstall-camera-extension`). Testing it would tear down the approved
 state and cost another System Settings click; do it as the first step of the
-next camera session, when a reinstall is imminent anyway. Then the sink
-stream (app→extension frames) as its own step.
+next camera session, when a reinstall is imminent anyway.
+
+## E5.1 sink stream — app→extension frame transport (August 2026)
+
+**Transport proven end to end, headless.** The extension (0.2.0/8) now carries
+a second stream, direction `.sink`, same 1080p30 BGRA format, fixed UUID. The
+app connects via the CoreMediaIO C API (`CameraSinkClient`): find device by
+UID → sink stream is the one output-scope stream → `CMIOStreamCopyBufferQueue`
+→ `CMIODeviceStartStream` → enqueue retained `CMSampleBuffer`s. The extension
+runs a self-perpetuating `consumeSampleBuffer` loop, stores the latest frame,
+and the 30 fps source timer serves that frame instead of the test card while
+it's fresher than 1 s — the staleness fallback is the R2 watchdog: if the app
+dies mid-meeting the camera returns to the test card by itself.
+
+Measured, not asserted: `--push-camera-frames=10` pushed **300 frames, 0
+dropped, in 10.0 s**, and the extension's own log shows `consumed sink frame 1`
+→ `consumed sink frame 300` → `sink stopped after 300 frames`. Exact 1:1
+frame accounting across the process boundary.
+
+**Not yet verified (needs a human eyeball, camera TCC is auto-denied for CLI
+processes):** the relay's rendered pixels in a client app. The check: run
+`/Applications/MeetingNotes.app/Contents/MacOS/MeetingNotes --push-camera-frames=30`,
+open Photo Booth on "Meeting Companion Camera" — you should see the indigo
+"LIVE FROM MEETING COMPANION APP" pattern (orange block sweeping vertically,
+its own frame counter), and the SMPTE test card should return ~1 s after the
+push ends. The extension will log "relaying app frames" / "sink idle or stale
+— serving test card" transitions.
+
+Hard-won, log-verified facts from this step:
+
+1. **Replacing a live extension can lose a launchd race.** The category start
+   submits the new `CMIOExtension.<bundle-id>` launchd job while the old one
+   is still dying → `Submit job failed … error = 37: Operation already in
+   progress` → launchd removes the service and nobody retries. sysextd still
+   reports `[activated enabled]`; the camera just silently vanishes
+   (`launchctl print system | grep CMIOExtension` is the tell). Recovery:
+   bump `CFBundleVersion` and replace again while nothing is running. Hit
+   twice (v1→v2, v3→v4); v5→v6, v6→v7, v7→v8 replaced cleanly.
+2. **`CMIOExtensionClient.signingID` for a C-API sink client is the literal
+   string `"unknown"`** on macOS 26.5 — not nil, and not the client's real
+   signing ID (terminal and LaunchServices launches alike; the reported pid
+   IS the real client's). A signing-ID allowlist therefore cannot gate the
+   sink. A SecCode-on-pid fallback also fails: the sandboxed extension gets
+   `deny file-read-data` on the client bundle when evaluating the
+   requirement. OBS ships `return true` here (obs-studio,
+   `OBSCameraStreamSink.swift`). We do the same, plus refuse any client that
+   *positively* identifies as someone else, and log every authorization.
+   Revisit at hardening time (options: app-group token handshake).
+3. `sinkEndOfData` bridges to Swift as `Int`, not `Bool`.
+4. The CMIO C API sees the extension's device (`kCMIOHardwarePropertyDevices`)
+   only while the extension process is alive — same launchd-race tell as #1.
+5. `log` is a zsh *builtin*; `log show` in a zsh one-liner silently does
+   nothing. Use `/usr/bin/log`.
+6. `plutil` rewrites a plist canonically and **strips XML comments** — the
+   mach-service-name warning comment had to be restored by hand. Edit
+   plists with a text editor, not plutil, when they carry commentary.
+
+New dev affordances: `--push-camera-frames[=seconds]` launch flag,
+`Scripts/list-cmio-devices.swift` (C-API view of devices + stream scopes).
 
 ## Open work
 
@@ -176,8 +235,10 @@ stream (app→extension frames) as its own step.
 - **E3.2 unified main window**, **E3.3 onboarding rewrite**, **E3.5 brand pass**
   (bundle ID already moved to `com.strongrise.meetingcompanion`; visible name
   still "MeetingNotes"), **E4 signing/DMG/Sparkle** (see "User actions" below).
-- **E5.2+**: capture/render pipeline, segmentation, overlays — gated on the
-  E5.1 approval verification.
+- **E5.2+**: capture/render pipeline (`CompanionVideoCore`), segmentation,
+  overlays. Unblocked: the sink transport it feeds into is proven. The app
+  Info.plist already carries `NSCameraUsageDescription`; first AVCaptureSession
+  use will raise the TCC prompt.
 
 ### User actions required (nobody else can do these)
 

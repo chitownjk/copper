@@ -33,25 +33,30 @@ and SpeechAnalyzer run for real; don't stub them.
 
 ## Your job
 
-### First: check whether the camera extension got approved
+### First: check whether the sink relay got its eyeball check
 
-The E5.1 tracer bullet is built, signed, provisioned, and **activated pending
-the user's one click** (System Settings → General → Login Items & Extensions →
-Camera Extensions). Check state:
+The E5.1 **sink stream is built and transport-proven** (300/300 frames across
+the process boundary, extension log accounting exact — see the log). What no
+headless check can prove is the rendered relay: camera TCC is auto-denied for
+CLI processes. If the user is around, ask them to run
 
-    systemextensionsctl list
+    /Applications/MeetingNotes.app/Contents/MacOS/MeetingNotes --push-camera-frames=30
 
-- `[activated waiting for user]` → still waiting; nag the user, work Track B.
-- `[activated enabled]` → verify immediately: `swift Scripts/list-cameras.swift`
-  should show "Meeting Companion Camera"; then check Photo Booth/Zoom show the
-  test pattern (moving green block + frame counter — a frozen counter means
-  the stream died). Update the log; that closes the tracer bullet.
+and watch "Meeting Companion Camera" in Photo Booth: indigo "LIVE FROM
+MEETING COMPANION APP" pattern while pushing, SMPTE test card returning ~1 s
+after it stops. Extension logs the "relaying app frames" / "serving test
+card" transitions. That closes E5.1's transport step.
 
-Then the next E5.1 increment is the **sink stream** (app→extension frame
-transport) — the extension gains a `.sink` direction stream, the app connects
-via CoreMediaIO and pushes frames; the extension serves them instead of the
-test card when the app is live. The dumb-extension rule (CLAUDE.md rule 2)
-still holds. After that: E5.2 capture pipeline in `CompanionVideoCore`.
+**Before any extension replace:** read the launchd-race note in the log
+(hard-won fact #1 under the sink-stream section). If the camera vanishes
+after a replace, `launchctl print system | grep CMIOExtension` is the tell;
+bump `CFBundleVersion` and replace again.
+
+Then: **E5.2 capture pipeline** — `CompanionVideoCore` package,
+AVCaptureSession → CVPixelBuffer → (for now) straight into
+`CameraSinkClient`. The app will need camera TCC (usage description is
+already in the Info.plist). The dumb-extension rule (CLAUDE.md rule 2)
+still holds.
 
 ### Whenever blocked
 
@@ -63,11 +68,13 @@ still holds. After that: E5.2 capture pipeline in `CompanionVideoCore`.
 
 ## User actions outstanding (nobody else can do these)
 
-1. Approve the camera extension (one click, see above).
+1. Eyeball the sink relay in Photo Booth (see above — 60 seconds).
 2. E4.1: create a **Developer ID Application** cert (Account Holder at
    developer.apple.com) + notarytool credentials. Dev-signing needed no
    Apple approval — the System Extension capability is self-service.
-3. Optional: reboot to flush the dead SplitmediaLabs virtcam uninstall.
+3. Optional: reboot to flush the dead SplitmediaLabs virtcam uninstall and
+   the stack of superseded Meeting Companion extension versions (v1–v7 sit
+   in "waiting to uninstall on reboot" / stale staging dirs).
 
 ---
 

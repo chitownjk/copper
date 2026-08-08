@@ -18,6 +18,8 @@
     <string>14.0</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSCameraUsageDescription</key>
+    <string>MeetingNotes connects to its own virtual camera to send it video, and will capture your camera for video effects.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>MeetingNotes records your microphone during meetings so it can transcribe and summarize them.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>

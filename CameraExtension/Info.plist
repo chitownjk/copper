@@ -2,29 +2,29 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundlePackageType</key>
-    <string>SYSX</string>
-    <key>CFBundleIdentifier</key>
-    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-    <key>CFBundleName</key>
-    <string>Meeting Companion Camera</string>
-    <key>CFBundleExecutable</key>
-    <string>$(EXECUTABLE_NAME)</string>
-    <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
-    <key>NSSystemExtensionUsageDescription</key>
-    <string>Provides the Meeting Companion virtual camera that other apps can select as a video source.</string>
-    <key>CMIOExtension</key>
-    <dict>
-        <!-- Must be prefixed by the team ID (or an app group the extension
-             belongs to). A mismatch fails SILENTLY: the extension installs
-             but never appears in any camera picker. -->
-        <key>CMIOExtensionMachServiceName</key>
-        <string>$(TeamIdentifierPrefix)$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-    </dict>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleName</key>
+	<string>Meeting Companion Camera</string>
+	<key>CFBundlePackageType</key>
+	<string>SYSX</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.2.0</string>
+	<key>CFBundleVersion</key>
+	<string>8</string>
+	<key>CMIOExtension</key>
+	<dict>
+		<!-- Must be prefixed by the team ID (or an app group the extension
+		     belongs to). A mismatch fails SILENTLY: the extension installs
+		     but never appears in any camera picker. -->
+		<key>CMIOExtensionMachServiceName</key>
+		<string>$(TeamIdentifierPrefix)$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	</dict>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>NSSystemExtensionUsageDescription</key>
+	<string>Provides the Meeting Companion virtual camera that other apps can select as a video source.</string>
 </dict>
 </plist>

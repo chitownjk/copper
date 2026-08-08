@@ -44,6 +44,7 @@ final class AppState {
         }
         Task { await RetentionSweeper.sweepIfDue() }
         handleCameraExtensionFlags()
+        handleCameraSinkPushFlag()
         // Dev affordance: this is a menu-bar app with no dock icon, so there's
         // otherwise no way to open a window straight from a launch.
         if let flag = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--settings") }) {
@@ -89,6 +90,23 @@ final class AppState {
             CameraExtensionInstaller.install(onOutcome: report)
         } else {
             CameraExtensionInstaller.uninstall(onOutcome: report)
+        }
+    }
+
+    /// `--push-camera-frames[=seconds]`: connects to the extension's sink
+    /// stream and pushes the app pattern at 30 fps, then exits. Headless
+    /// verification for the E5.1 sink-transport step; default 10 s.
+    private func handleCameraSinkPushFlag() {
+        guard let flag = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--push-camera-frames") }) else { return }
+        let seconds = flag.split(separator: "=").last.flatMap { Double($0) } ?? 10
+        Task { @MainActor in
+            do {
+                let stats = try await CameraSinkPushProbe().run(seconds: seconds)
+                print("camera sink: pushed \(stats.pushed) frame(s), dropped \(stats.dropped) over \(seconds)s")
+            } catch {
+                print("camera sink: failed — \(error.localizedDescription)")
+            }
+            NSApp.terminate(nil)
         }
     }
 
