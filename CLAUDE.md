@@ -1,6 +1,6 @@
 # Meeting Companion (working name)
 
-One macOS app, two pillars: local meeting recording/transcription/notes (the existing `app/` codebase) plus a new native video companion (virtual camera with blur, backgrounds, overlays, standby card).
+One macOS app, two pillars: local meeting recording/transcription/notes plus a new native video companion (virtual camera with blur, backgrounds, overlays, standby card).
 
 **Read before doing anything:**
 - [docs/IMPLEMENTATION_LOG.md](docs/IMPLEMENTATION_LOG.md) — what has actually been built so far, what's partial, open concerns
@@ -19,16 +19,18 @@ One macOS app, two pillars: local meeting recording/transcription/notes (the exi
 
 ## Repo layout
 
-- `app/` — the Swift app. Four SwiftPM targets: `MeetingCore` (audio + transcription),
-  `MeetingProviders` (summarization backends), `MeetingNotes` (the executable), plus tests.
-  Migrating to an Xcode workspace per TD-6.
+- `MeetingCompanion.xcworkspace` / `MeetingCompanion.xcodeproj` — the Xcode workspace (E3.1, TD-6)
+- `App/` — the app target's sources, Info.plist, entitlements (SwiftUI shell, windows, menu bar, DB, pipeline)
+- `Packages/MeetingKit/` — local SwiftPM package: `MeetingCore` (audio + transcription) and
+  `MeetingProviders` (summarization backends) products, plus all tests
 - `webcamoid/` — GPL reference checkout, reference-only (see rule 1)
 - `docs/` — PRD, tech plan, backlog, handover
 
 ## Working notes
 
-- Build: `cd app && swift build` (until E3.1 migrates to Xcode)
-- Test: `cd app && swift test`. Golden fixtures are bundled; the end-to-end transcription
+- Build: `xcodebuild -project MeetingCompanion.xcodeproj -scheme MeetingNotes -configuration Release build`
+  (or open the workspace in Xcode)
+- Test: `cd Packages/MeetingKit && swift test`. Golden fixtures are bundled; the end-to-end transcription
   test is gated behind `MEETING_NOTES_RUN_TRANSCRIPTION=1` (it downloads a 632 MB model)
 - Data lives in `~/Library/Application Support/MeetingNotes/` (rename/migration is story E3.5)
 - Platform floor: macOS 14, Apple Silicon only (TD-8)

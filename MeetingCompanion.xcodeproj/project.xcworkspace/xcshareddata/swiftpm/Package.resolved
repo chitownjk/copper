@@ -1,4 +1,5 @@
 {
+  "originHash" : "c675fc79d327f310e2d19988db06c78b96a5b7f835a876e868aca758a508f187",
   "pins" : [
     {
       "identity" : "argmax-oss-swift",
@@ -28,5 +29,5 @@
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }
