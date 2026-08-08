@@ -1,165 +1,170 @@
-# Implementation log — M1
+# Implementation log
 
-What actually landed, what is partial, and what the next session needs to know.
+What has been built, how it was verified, and what is still open.
 Companion to [BACKLOG.md](BACKLOG.md) (story IDs) and [TECH_PLAN.md](TECH_PLAN.md) (TD-1…TD-8).
 
-**Status: M1 is functionally complete.** The app has zero external-binary
-dependencies. `grep -rn "Process()\|/opt/homebrew" app/Sources/` returns nothing
-but comments. A clean Mac can record → mix → transcribe → summarize with no
-Terminal use.
+**Repo:** `github.com/chitownjk/meeting-companion` (private). Working name is
+"Meeting Companion"; the real name is still an open product decision (PRD §8),
+and only the repo name and window titles would need to change.
+
+**Status: M1 complete and verified in the shipping binary. M2 partially done.**
+The app has no external-binary dependencies — `grep -rn "Process()\|/opt/homebrew"
+app/Sources/` matches nothing but comments. On a machine with Apple Intelligence
+it records → mixes → transcribes → summarizes with zero configuration.
 
 ---
 
 ## Package layout (TD-6 groundwork)
 
-`app/Package.swift` now has four targets instead of one executable:
-
 | Target | Contents | Maps to (TD-6) |
 |---|---|---|
-| `MeetingCore` | `AudioMixer`, `TranscriptionEngine` + `WhisperKitEngine`, `WhisperModelStore`, `Paths`, `DiskSpace` | `CompanionCore` |
-| `MeetingProviders` | `SummaryProvider` protocol + 4 backends, templates, chunking, Keychain | `CompanionProviders` |
-| `MeetingNotes` | SwiftUI app, DB, pipeline, calendar, windows | App target |
-| `MeetingCoreTests` / `MeetingProvidersTests` | 43 tests | — |
+| `MeetingCore` | `AudioMixer`, `TranscriptionEngine` + `WhisperKitEngine`, `WhisperModelStore` + `WhisperModelManager`, `RetentionPolicy`, `RecordingArtifacts`, `DiskSpace`, `Paths` | `CompanionCore` |
+| `MeetingProviders` | `SummaryProvider` + 4 backends, templates, map-reduce chunking, `KeychainStore` | `CompanionProviders` |
+| `MeetingNotes` | SwiftUI app, DB + migrations, pipeline, calendar, windows | App target |
+| `MeetingCoreTests` / `MeetingProvidersTests` | 62 tests, bundled audio fixtures | — |
 
-The Xcode migration (E3.1) inherits an already-separated core. `CompanionVideoCore`
-does not exist yet — it arrives with E5.
+`CompanionVideoCore` doesn't exist yet — it arrives with E5.
 
 ---
 
-## Stories completed
+## Stories complete
 
 | Story | Notes |
 |---|---|
-| **E1.1** AVFoundation mixing | `MeetingCore/AudioMixer.swift`. Streams in ~1 s chunks; a 2-hour meeting never lands in memory. |
-| **E1.2** WhisperKit engine | argmax-oss-swift v1.1.0 (MIT). ANE by default. Language is a setting, not hardcoded `en`. |
-| **E1.5** Crash recovery + disk preflight | `MeetingNotes/CrashRecovery.swift`, `MeetingCore/DiskSpace.swift`. |
-| **E1.6** Remove `claude` CLI | `Summarizer.swift`, `SubprocessRunner.swift`, `ToolResolver.swift` deleted. |
-| **E2.1** Provider protocol + registry | `SummaryProvider`, `SummaryProviderRegistry`. Schema migration `v2_summary_provenance`. |
-| **E2.2** Apple Foundation Models | Compiled against the macOS 26 SDK, gated at runtime; reports `.unavailable` with a specific reason on 14/15. |
-| **E2.3** Anthropic + OpenAI BYOK | Keys in Keychain. Chunk+reduce for long transcripts. Live key validation at save time. |
-| **E2.4** Local server | Ollama/LM Studio via the shared OpenAI-compatible client; connection test verifies the model is actually present. |
-| **E2.5** Templates | 5 built-ins + custom. Summaries are multi-row; history pruned to the last 3. |
+| **E1.1** AVFoundation mixing | Streams in ~1 s chunks; a 2-hour meeting never lands in memory. |
+| **E1.2** WhisperKit engine | argmax-oss-swift v1.1.0 (MIT), ANE. Language is a setting. |
+| **E1.3** Model manager | Install / verify / delete / cancel, ANE prewarm after download. |
+| **E1.5** Crash recovery + disk preflight | Plus a headless `--recover-orphans` path. |
+| **E1.6** Remove `claude` CLI | Summarization is best-effort; a transcript always survives. |
+| **E2.1–E2.5** Provider layer | Apple FM / Anthropic / OpenAI / local server, templates, provenance. |
+| **E3.4** Settings window | Four tabs, deep-linkable, retention policy + daily sweep. |
 
----
+### Behavioural changes worth knowing
 
-## Two behavioural changes worth knowing
-
-**1. The mic track is 3 dB louder than it used to be.** The old ffmpeg graph
-(`amix=inputs=2:duration=longest:normalize=0` → `-ar 16000 -ac 1`) silently
+**The mic track is 3 dB louder than it used to be.** The old ffmpeg graph
 upmixed the mono mic to stereo through libswresample, scaling it by 1/√2 — so
 the old pipeline recorded your own voice below everyone else's. Measured, not
 assumed: modelling the reference as `system + mic/√2` matches ffmpeg at 65.6 dB
-SNR vs 8.2 dB for a plain sum. `AudioMixer` sums at unity. Pinned by
-`AudioMixerGoldenTests`; revert by scaling the mic reader if you disagree.
+SNR versus 8.2 dB for a plain sum. Pinned by `AudioMixerGoldenTests`.
 
-**2. A failed summary no longer fails the meeting.** Previously any summarizer
-error set `status = failed` and the transcript was invisible in the UI. Now
-mixing and transcription failing is fatal; summarization failing is not — the
-meeting reaches `ready`, the transcript is searchable, and a toast explains what
-went wrong. This is E1.6's acceptance criterion, and it also covers the
-rate-limited / offline BYOK case.
+**A failed summary no longer fails the meeting.** Mixing and transcription
+failing is fatal; summarization failing is not. The meeting reaches `ready`, the
+transcript is searchable, and a toast explains what happened. This is E1.6's
+acceptance criterion and it also covers rate-limited or offline BYOK.
 
 ---
 
-## Verification performed
+## Verification
 
-- **43 tests, 0 failures.** 3 are env-gated (below) and skip by default.
-- **Mixer vs ffmpeg on the real 30.7 s dual-track recording**: output length
-  **491,200 frames — exactly ffmpeg's**. 37.6 dB wideband SNR, 60.3 dB below
-  4 kHz. The wideband residual is entirely 6–8 kHz transition-band rolloff
-  (Apple mastering SRC vs soxr), verified by band-limiting.
-- **End-to-end transcription**: 8 segments, ordered, in-bounds, text matching
-  the checked-in whisper-cli reference. **30.7 s of audio in 3.3 s warm (~9×
-  realtime)**; 626 MB model.
-- **Schema migration**: `v1 → v2` simulated against a populated v1 database —
-  rows preserved with NULL provenance, `PRAGMA foreign_key_check` clean, cascade
-  delete still works.
+**62 tests, 0 failures** (`cd app && swift test`). Golden audio fixtures are
+bundled, so nothing needs an environment variable. One test is gated:
 
 ```bash
-cd app && MEETING_NOTES_GOLDEN_DIR=../spike-audio/output swift test
+cd app && MEETING_NOTES_RUN_TRANSCRIPTION=1 swift test --filter WhisperKitEngineIntegrationTests
+```
+
+Measured, not asserted-from-theory:
+
+| What | Result |
+|---|---|
+| Mixer output length vs ffmpeg | **Exact** (130,560 frames on the bundled fixture; 491,200 on the full 30.7 s recording) |
+| Mixer fidelity vs ffmpeg | 38.0 dB wideband, 61.8 dB below 4 kHz — residual is 6–8 kHz transition-band rolloff only |
+| Transcription throughput | 30.7 s of audio in 3.3 s warm (~9× realtime) |
+| First transcription after download | **244 s** — Core ML ANE specialization. Now paid during install via prewarm. |
+| Model integrity check | Accepts the real 626 MB install, rejects a gutted one |
+
+**Verified by running the release binary on macOS 26.5.2:**
+
+- All three migrations apply to a real database; `integrity_check` and
+  `foreign_key_check` clean. The v1→v2 summaries rebuild preserves existing rows
+  with NULL provenance.
+- All four Settings tabs render without trapping.
+- Apple Foundation Models summarizes a real transcript on-device and correctly
+  attributes the owner flagged in the notes; a 40k-character transcript
+  map-reduces in ~18 s.
+- **Full crash-recovery chain**: a staged orphan raises the prompt, and headless
+  recovery carries it all the way — `ended_at` stamped from file mtime, a
+  mic-only partial mixed, three correct transcript segments off the ANE, an
+  on-device summary with provenance recorded, FTS rebuilt. That exercises E1.1,
+  E1.2, E1.5, E1.6, E2.1, E2.2 and E2.5 together in the shipping app.
+
+### Launch flags
+
+Support affordances, not test scaffolding — this is a menu-bar app with no dock
+icon, so there is otherwise no way into a window from a cold launch.
+
+```bash
+.build/release/MeetingNotes --settings=summaries   # general | transcription | summaries | storage
 ```
 
 ```bash
-cd app && MEETING_NOTES_RUN_TRANSCRIPTION=1 MEETING_NOTES_GOLDEN_DIR=../spike-audio/output swift test --filter WhisperKitEngineIntegrationTests
+.build/release/MeetingNotes --recover-orphans      # salvage crashed recordings, no UI
 ```
 
 ---
 
-## Partial / not done — read before picking this up
+## Open work
 
-### E1.3 model manager — service layer only
+### Not started
 
-`WhisperModelStore` has the catalog, paths, `isDownloaded`, `installedBytes`,
-and a working in-app download with progress (wired into onboarding). **Missing
-against the AC**: resume-after-network-drop, checksum validation, delete/
-re-download, and the model picker UI. The picker needs the Settings window
-(E3.4, M2) — the service API is ready for it.
+- **E1.4 SpeechAnalyzer engine.** `TranscriptionEngine` is the seam; add
+  `SpeechAnalyzerEngine` and pick it in `Pipeline.engine`. Nothing blocks it,
+  and this Mac can run it.
+- **E2.6 quick actions.** "Regenerate" / "Shorter" / "As follow-up email" are UI
+  only — `Pipeline.regenerateSummary(meetingId:template:)` already does the work.
+- **E3.1 Xcode migration**, **E3.2 unified main window**, **E3.3 onboarding
+  rewrite**, **E3.5 brand pass**, **E4 signing/DMG/Sparkle**. E3.1 is the hard
+  prerequisite for the camera extension and for signing.
+- **E5 video pillar.** Untouched. The E5.1 tracer bullet is the single riskiest
+  item in the whole plan (TECH_PLAN R1) and should start during M2, not M3.
 
-**Related and important**: the first transcription after download took **244 s**
-versus 3.3 s warm. That is Core ML specializing the model for the ANE. Onboarding
-should prewarm (`WhisperKitEngine.prepare` with `prewarm: true`) right after the
-download completes, or the first real meeting pays it.
+### Partial
 
-### E1.4 SpeechAnalyzer engine — not started
-
-`TranscriptionEngine` is the seam; add `SpeechAnalyzerEngine` and pick it in
-`Pipeline.engine`. Nothing blocks it.
-
-### E2.6 quick actions — not started
-
-"Regenerate" / "Shorter" / "As follow-up email" are UI. The backing call exists:
-`Pipeline.regenerateSummary(meetingId:template:)` runs a new generation against
-the stored transcript and prunes history to 3.
-
-### No Settings UI for any of this
-
-Everything the provider layer needs is exposed and testable —
-`SummaryProviderRegistry.statuses()` returns one row per backend with its
-blocker and privacy label, `validateConfiguration()` powers a Test-connection
-button, `KeychainStore` handles keys. But there is **no window to put it in**
-until E3.4. Right now a provider can only be configured by writing to
-UserDefaults/Keychain directly. This is the biggest gap between "M1 works" and
-"a stranger can use it".
+- **Custom summary templates** have a store (`SummaryTemplateStore.custom`) and
+  are picked up by the Settings dropdown, but there is no editor UI. Built-ins
+  work fully.
+- **Per-meeting retention pinning**: the column, the sweep logic, and the
+  "Apply Retention Now" button all exist. There is no UI to *set* the pin — that
+  belongs in the meeting detail view, which E3.2 rewrites anyway.
+- **Onboarding** still uses the old checklist window. It now checks the right
+  things (speech model, summarizer) but E3.3 replaces the whole flow.
 
 ---
 
-## Concerns to escalate
+## Concerns
 
-1. **This directory is not a git repository.** Everything above is unversioned.
-   `git init` before more work lands. I did not run it — creating a repo and
-   committing is the user's call.
+1. **`Database.swift` still `fatalError`s on init.** A corrupt or unwritable
+   database kills the app at launch with no message. `Database.shared` is
+   non-optional at ~15 call sites, so fixing it is a UI-design question (what
+   does the app *do* in that state?), not a mechanical change. Worth a decision
+   before shipping to strangers.
 
-2. **Model IDs in provider catalogs will age.** `AnthropicProvider.models` and
-   `OpenAIProvider.models` hardcode current model IDs. The Anthropic list was
-   checked against current docs; **the OpenAI list (`gpt-5.1`, `gpt-5.1-mini`)
-   was not verified against OpenAI's API** — I have no authoritative source for
-   it in this session. Verify before shipping, or make the model field free-text
-   with a suggestion list.
+2. **The modal recovery alert blocks at launch.** `NSAlert.runModal()` in
+   `CrashRecoveryPrompt` runs a nested run loop before the menu bar is usable.
+   Correct behaviour, arguably, but with several orphans it means several
+   sequential modals. Consider folding recovery into the E3.2 main window.
 
-3. **The Anthropic provider runs at `effort: "low"` with thinking on.** That is
-   deliberate: summarization is not reasoning-heavy, and disabling thinking on
-   current models risks `<thinking>` tags leaking into output. If summaries come
-   back shallow on long meetings, raise to `medium` before changing anything else.
+3. **Provider model catalogs will age.** Anthropic and OpenAI IDs were verified
+   against current docs in August 2026 (`claude-sonnet-5` / `claude-opus-5` /
+   `claude-haiku-4-5`; `gpt-5.6-terra` / `-luna` / `-sol`). They are hardcoded
+   lists and will need periodic checking, or a free-text field with suggestions.
 
-4. **`spike-audio/` still exists** and TECH_PLAN §7 says delete it. Its
-   `output/` directory is the only real-world fixture and both golden tests point
-   at it via `MEETING_NOTES_GOLDEN_DIR`. Relocate those three WAVs (ideally
-   trimmed to ~8 s, regenerating the ffmpeg reference from the trimmed inputs)
-   before deleting the spike.
+4. **Anthropic runs at `effort: "low"` with thinking on.** Deliberate:
+   summarization is not reasoning-heavy, and disabling thinking on current
+   models risks `<thinking>` tags leaking into output. If summaries come back
+   shallow on long meetings, raise to `medium` before changing anything else.
 
-5. **`Database.swift` still `fatalError`s on init.** Listed as a known debt in
-   the handover; untouched because `Database.shared` is non-optional at ~15 call
-   sites and making it recoverable is a UI question, not a mechanical one.
+5. **The 8-second bundled fixture is a slice, not a whole meeting.** Good enough
+   for the mixer and a smoke transcription. Chunking behaviour over a genuinely
+   long meeting (2 hours, map-reduce across many chunks with a cloud provider)
+   has only been tested with synthetic text.
 
-6. **The E1.2 acceptance criterion is only partly verified.** The AC asks for
-   timestamps within ±500 ms of whisper-cli output. Neither `whisper-cli` nor the
-   ggml model is installed on this machine, so no timestamped reference could be
-   produced. Verified instead against the checked-in reference *text* plus
-   ordering/bounds invariants. Installing whisper-cpp + the 1.5 GB ggml model
-   would close it.
+6. **Nothing is signed or notarized**, so the camera extension (which requires
+   Developer ID + notarization + `/Applications`) remains entirely unproven.
+   That dependency chain — E3.1 → E4.1 → E5.1 — is the critical path to the
+   video pillar and none of it has started.
 
-7. **Untested at runtime**: the Apple Foundation Models provider (needs macOS 26
-   with Apple Intelligence on), the crash-recovery prompt (needs a real
-   `kill -9` mid-recording), and the disk watchdog (needs a nearly-full volume).
-   All three compile and their logic is straightforward, but none has been
-   exercised end-to-end.
+7. **No BYOK provider has been exercised against a live endpoint.** Anthropic,
+   OpenAI, and the local-server paths are unit-tested at the parsing and
+   error-mapping layer only; no real API key was used. The wire format follows
+   current documentation, but first real use may surface something.
