@@ -56,6 +56,7 @@ argmax-oss-swift. `CompanionVideoCore` still doesn't exist — it arrives with E
 | **E3.4** Settings window | Four tabs, deep-linkable, retention policy + daily sweep. |
 | **E3.1** Xcode workspace | Hand-authored project, synchronized groups; app + extension targets; `swift test` green after the move; `--recover-orphans` / `--settings` verified from the .app bundle. |
 | **E1.4** SpeechAnalyzer engine | `SpeechAnalyzerEngine` behind `TranscriptionEngine`; Settings picker "Apple (no download)"; engine resolved per pipeline run, stale prefs fall back to Whisper. |
+| **E2.6** Quick actions | Regenerate (any template) / Shorter / As-follow-up-email on the summary tab. Email drafts are one-off (`Pipeline.generateOneOff`) so they never displace a summary in the 3-generation history. Live on-device email draft in 2.2 s with a `Subject:` line. Button wiring built and compiling; clicked-through UI verification still pending (menu-bar UI automation needs a permission this session doesn't have). |
 
 ### Behavioural changes worth knowing
 
@@ -155,8 +156,6 @@ sink stream (app→extension frames) as its own step.
 
 ### Not started
 
-- **E2.6 quick actions.** "Regenerate" / "Shorter" / "As follow-up email" are UI
-  only — `Pipeline.regenerateSummary(meetingId:template:)` already does the work.
 - **E3.2 unified main window**, **E3.3 onboarding rewrite**, **E3.5 brand pass**
   (bundle ID already moved to `com.strongrise.meetingcompanion`; visible name
   still "MeetingNotes"), **E4 signing/DMG/Sparkle** (see "User actions" below).

@@ -117,8 +117,26 @@ actor Pipeline {
     }
 
     /// Re-runs summarization on an existing transcript — the "Regenerate" and
-    /// per-meeting template-override paths (E2.6).
+    /// per-meeting template-override paths (E2.6). History keeps the last 3
+    /// generations, so this never clobbers anything silently.
     func regenerateSummary(meetingId: String, template: SummaryTemplate) async throws {
+        let (provider, request) = try await preparedRequest(meetingId: meetingId, template: template)
+        let result = try await provider.summarize(request)
+        try await store(result, for: meetingId)
+    }
+
+    /// One-off generation that is shown but never stored — the "As follow-up
+    /// email" sheet (E2.6). Deliberately bypasses `store` so an email draft
+    /// can't displace a real summary in the generation history.
+    func generateOneOff(meetingId: String, template: SummaryTemplate) async throws -> String {
+        let (provider, request) = try await preparedRequest(meetingId: meetingId, template: template)
+        return try await provider.summarize(request).content
+    }
+
+    private func preparedRequest(
+        meetingId: String,
+        template: SummaryTemplate
+    ) async throws -> (SummaryProvider, SummaryRequest) {
         guard let provider = await SummaryProviderRegistry.shared.resolveActive() else {
             throw SummaryProviderError.notConfigured(.appleFoundationModels)
         }
@@ -131,14 +149,12 @@ actor Pipeline {
         let segments = transcript.map {
             TranscribedSegment(startMs: $0.startMs, endMs: $0.endMs, text: $0.text)
         }
-        let result = try await provider.summarize(
-            SummaryRequest(
-                transcript: formatTranscript(segments),
-                notes: try await fetchNotesText(meetingId),
-                template: template
-            )
+        let request = SummaryRequest(
+            transcript: formatTranscript(segments),
+            notes: try await fetchNotesText(meetingId),
+            template: template
         )
-        try await store(result, for: meetingId)
+        return (provider, request)
     }
 
     // MARK: - DB helpers

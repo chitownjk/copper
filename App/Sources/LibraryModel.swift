@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import GRDB
+import MeetingProviders
 
 @MainActor
 @Observable
@@ -13,6 +14,11 @@ final class LibraryModel {
     var detailSummary: String = ""
     var detailNotes: [NoteEntryRow] = []
     var detailSegments: [SegmentRow] = []
+
+    // E2.6 quick actions
+    var isGeneratingSummaryAction = false
+    /// Non-nil presents the copyable follow-up-email sheet.
+    var emailDraft: String?
 
     private var observationTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
@@ -92,6 +98,36 @@ final class LibraryModel {
             detailSegments = []
         } catch {
             print("Delete failed: \(error)")
+        }
+    }
+
+    // MARK: - Summary quick actions (E2.6)
+
+    func regenerateSummary(template: SummaryTemplate) {
+        runSummaryAction { id in
+            try await Pipeline.shared.regenerateSummary(meetingId: id, template: template)
+            ToastPresenter.shared.show(.success, title: "Summary regenerated", subtitle: template.name)
+        }
+    }
+
+    func generateFollowUpEmail() {
+        runSummaryAction { [weak self] id in
+            let draft = try await Pipeline.shared.generateOneOff(meetingId: id, template: .followUpEmail)
+            self?.emailDraft = draft
+        }
+    }
+
+    private func runSummaryAction(_ action: @escaping @MainActor (String) async throws -> Void) {
+        guard let id = selectedMeetingId, !isGeneratingSummaryAction else { return }
+        isGeneratingSummaryAction = true
+        Task { [weak self] in
+            defer { self?.isGeneratingSummaryAction = false }
+            do {
+                try await action(id)
+                self?.loadDetail(for: id)
+            } catch {
+                ToastPresenter.shared.show(.error, title: "Couldn’t generate", subtitle: error.localizedDescription)
+            }
         }
     }
 

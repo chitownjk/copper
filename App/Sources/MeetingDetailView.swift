@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import MeetingProviders
 
 enum DetailTab: String, CaseIterable, Identifiable {
     case summary, notes, transcript
@@ -104,17 +105,64 @@ struct MeetingDetailView: View {
     }
 
     private var summaryView: some View {
-        ScrollView {
-            if model.detailSummary.isEmpty {
-                placeholder("No summary yet — recording may still be processing.")
-            } else {
-                Text(model.detailSummary)
-                    .font(.system(size: 13))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
+        VStack(spacing: 0) {
+            summaryActionBar
+            Divider()
+            ScrollView {
+                if model.detailSummary.isEmpty {
+                    placeholder("No summary yet — recording may still be processing.")
+                } else {
+                    Text(model.detailSummary)
+                        .font(.system(size: 13))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(16)
+                }
             }
         }
+        .sheet(isPresented: Binding(
+            get: { model.emailDraft != nil },
+            set: { if !$0 { model.emailDraft = nil } }
+        )) {
+            EmailDraftSheet(draft: model.emailDraft ?? "")
+        }
+    }
+
+    /// E2.6. Disabled while a transcript is missing — there is nothing to
+    /// summarize — and while an action is already running.
+    private var summaryActionBar: some View {
+        HStack(spacing: 8) {
+            Menu {
+                ForEach(SummaryTemplateStore.all) { template in
+                    Button(template.name) {
+                        model.regenerateSummary(template: template)
+                    }
+                }
+            } label: {
+                Label("Regenerate", systemImage: "arrow.clockwise")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+
+            Button("Shorter") {
+                model.regenerateSummary(template: .shorter)
+            }
+
+            Button("As follow-up email") {
+                model.generateFollowUpEmail()
+            }
+
+            if model.isGeneratingSummaryAction {
+                ProgressView()
+                    .controlSize(.small)
+                    .padding(.leading, 4)
+            }
+            Spacer()
+        }
+        .controlSize(.small)
+        .disabled(model.isGeneratingSummaryAction || model.detailSegments.isEmpty)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 
     private var notesView: some View {
@@ -225,5 +273,43 @@ struct MeetingDetailView: View {
         let s = secs % 60
         if h > 0 { return String(format: "%d:%02d:%02d", h, m, s) }
         return String(format: "%d:%02d", m, s)
+    }
+}
+
+/// The "As follow-up email" result: copyable, never stored (E2.6).
+private struct EmailDraftSheet: View {
+    let draft: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Follow-up email")
+                .font(.headline)
+            ScrollView {
+                Text(draft)
+                    .font(.system(size: 13))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+            }
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+
+            HStack {
+                Text("This draft isn’t saved with the meeting.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button(copied ? "Copied" : "Copy") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(draft, forType: .string)
+                    copied = true
+                }
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(16)
+        .frame(width: 480, height: 400)
     }
 }

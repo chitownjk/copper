@@ -114,6 +114,47 @@ public extension SummaryTemplate {
     static func builtIn(id: String) -> SummaryTemplate? {
         builtIns.first { $0.id == id }
     }
+
+    // MARK: Quick-action templates (E2.6)
+    //
+    // Not in `builtIns` — they're verbs on an existing meeting, not default
+    // styles a user picks in Settings. Their ids still land on summary rows
+    // ("shorter") or nowhere ("follow-up-email" output is never stored).
+
+    static let shorter = SummaryTemplate(
+        id: "shorter",
+        name: "Shorter",
+        systemPrompt: """
+        You are condensing a meeting transcript to its bare minimum. \(format)
+
+        Hard cap: 120 words total, overriding any other length guidance.
+        Sections:
+        - **TL;DR** — 1–2 sentences
+        - **Action Items** — with owner if mentioned
+        Nothing else.
+        """,
+        isBuiltIn: true
+    )
+
+    static let followUpEmail = SummaryTemplate(
+        id: "follow-up-email",
+        name: "Follow-up email",
+        systemPrompt: """
+        Write a follow-up email for this meeting, ready to paste into a mail \
+        client. \(format)
+
+        Format:
+        - First line: "Subject: " and a specific subject
+        - A one-line greeting to the attendees (no invented names)
+        - A short paragraph of what was decided
+        - Bulleted action items with owners if mentioned
+        - A sign-off placeholder on its own line: [Your name]
+        Plain text, not markdown headings. Keep it under 200 words.
+        """,
+        isBuiltIn: true
+    )
+
+    static let quickActions: [SummaryTemplate] = [.shorter, .followUpEmail]
 }
 
 /// Built-ins plus any custom templates the user wrote. Custom templates live in
@@ -142,7 +183,7 @@ public enum SummaryTemplateStore {
     }
 
     public static func template(id: String) -> SummaryTemplate? {
-        all.first { $0.id == id }
+        (all + SummaryTemplate.quickActions).first { $0.id == id }
     }
 
     /// The template new meetings use unless overridden per-meeting.
