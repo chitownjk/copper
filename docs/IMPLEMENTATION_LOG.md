@@ -149,9 +149,20 @@ Hard-won, log-verified facts:
 4. The extension's Info.plist needs `NSSystemExtensionUsageDescription` (error
    is explicit about it).
 
-Remaining for E5.1 acceptance: approve in System Settings → verify the camera
-appears in Photo Booth / Zoom / a discovery probe → uninstall path. Then the
-sink stream (app→extension frames) as its own step.
+**Approved and running** (later the same evening): `systemextensionsctl list`
+shows `[activated enabled]`; `Scripts/list-cameras.swift` finds "Meeting
+Companion Camera" as an `.external` AVFoundation device with the fixed device
+UUID; and the extension's own os_log shows two full
+`client connected → started streaming → stopped streaming` cycles matching
+the capture probe's two 1.5 s runs exactly — discovery, connect, startStream,
+frame timer, and teardown all work. What no headless check can prove: the
+rendered pixels in a real app. `Scripts/probe-companion-camera.swift` would
+prove it but camera TCC is auto-denied for CLI processes in the agent session
+("granted: false", no prompt). **A human opening Photo Booth and picking
+"Meeting Companion Camera" — expect color bars, a sweeping green block, and a
+counting frame number — is the last inch of E5.1 acceptance**, plus the
+uninstall path (`--uninstall-camera-extension`). Then the sink stream as its
+own step.
 
 ## Open work
 
