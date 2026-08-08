@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- System extensions must be sandboxed; activation is rejected otherwise. -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <!-- The CMIO category validator (macOS 26) requires the extension's mach
+         service name to be prefixed by one of these app groups — the bare
+         team-ID prefix documented for earlier releases is rejected with
+         paramErr -50. Team-ID-prefixed groups need no provisioning profile.
+         The app adopts the same group when the sink stream lands. -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>$(TeamIdentifierPrefix)com.strongrise.meetingcompanion</string>
+    </array>
+</dict>
+</plist>

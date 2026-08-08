@@ -27,6 +27,8 @@ final class AppState {
     private let settings = SettingsWindowController()
 
     init() {
+        // Must run before anything reads a preference.
+        LegacyDefaultsMigration.runIfNeeded()
         startObservingMeetings()
         self.autoRecorder = AutoRecorder(appState: self)
         self.onboarding = OnboardingWindowController(appState: self)
@@ -41,6 +43,7 @@ final class AppState {
             Task { await CrashRecoveryPrompt.runIfNeeded() }
         }
         Task { await RetentionSweeper.sweepIfDue() }
+        handleCameraExtensionFlags()
         // Dev affordance: this is a menu-bar app with no dock icon, so there's
         // otherwise no way to open a window straight from a launch.
         if let flag = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--settings") }) {
@@ -53,6 +56,40 @@ final class AppState {
         }
         showOnboardingIfFirstLaunch()
         subscribePipelineNotifications()
+    }
+
+    /// `--install-camera-extension` / `--uninstall-camera-extension`: headless
+    /// E5.1 verification path, same spirit as `--recover-orphans`. Prints each
+    /// state change; exits on a terminal one. "Needs approval" is not terminal
+    /// — the OS finishes the request once the user approves in System
+    /// Settings, so the process stays alive to see it.
+    private func handleCameraExtensionFlags() {
+        let arguments = ProcessInfo.processInfo.arguments
+        let installing = arguments.contains("--install-camera-extension")
+        let uninstalling = arguments.contains("--uninstall-camera-extension")
+        guard installing || uninstalling else { return }
+
+        let report: (CameraExtensionInstaller.Outcome) -> Void = { outcome in
+            switch outcome {
+            case .completed:
+                print("camera extension: completed")
+                NSApp.terminate(nil)
+            case .willCompleteAfterReboot:
+                print("camera extension: will complete after reboot")
+                NSApp.terminate(nil)
+            case .needsUserApproval:
+                print("camera extension: needs approval — System Settings > General > Login Items & Extensions > Camera Extensions")
+            case .failed(let error):
+                let nsError = error as NSError
+                print("camera extension: failed — \(nsError.domain) \(nsError.code): \(error.localizedDescription)")
+                NSApp.terminate(nil)
+            }
+        }
+        if installing {
+            CameraExtensionInstaller.install(onOutcome: report)
+        } else {
+            CameraExtensionInstaller.uninstall(onOutcome: report)
+        }
     }
 
     private func subscribePipelineNotifications() {

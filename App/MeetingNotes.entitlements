@@ -7,6 +7,10 @@
          existing user data (rename/migration is E3.5). -->
     <key>com.apple.security.device.audio-input</key>
     <true/>
+    <!-- Restricted entitlement: requires an embedded provisioning profile
+         (automatic signing mints one) or AMFI kills the app at launch. -->
+    <key>com.apple.developer.system-extension.install</key>
+    <true/>
     <key>com.apple.security.personal-information.calendars</key>
     <true/>
 </dict>
