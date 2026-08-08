@@ -94,6 +94,13 @@ enum Database {
             )
         }
 
+        // Per-meeting override for the retention sweep (PRD A7).
+        m.registerMigration("v3_retention_pin") { db in
+            try db.alter(table: "meetings") { t in
+                t.add(column: "retention_pinned", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         return m
     }
 }

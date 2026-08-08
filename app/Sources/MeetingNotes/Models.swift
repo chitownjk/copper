@@ -21,6 +21,8 @@ struct MeetingRow: Codable, FetchableRecord, MutablePersistableRecord, Identifia
     var calendarEventId: String?
     var audioDir: String
     var status: String
+    /// "Keep audio" — exempts this meeting from the retention sweep (PRD A7).
+    var retentionPinned: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id, title
@@ -30,6 +32,7 @@ struct MeetingRow: Codable, FetchableRecord, MutablePersistableRecord, Identifia
         case calendarEventId = "calendar_event_id"
         case audioDir = "audio_dir"
         case status
+        case retentionPinned = "retention_pinned"
     }
 
     var statusEnum: MeetingStatus {

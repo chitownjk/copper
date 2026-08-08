@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 import GRDB
@@ -23,13 +24,33 @@ final class AppState {
     let calendar = CalendarService()
     private(set) var autoRecorder: AutoRecorder!
     private var onboarding: OnboardingWindowController!
+    private let settings = SettingsWindowController()
 
     init() {
         startObservingMeetings()
         self.autoRecorder = AutoRecorder(appState: self)
         self.onboarding = OnboardingWindowController(appState: self)
         Task { await bootstrapCalendar() }
-        Task { await CrashRecoveryPrompt.runIfNeeded() }
+        if ProcessInfo.processInfo.arguments.contains("--recover-orphans") {
+            Task {
+                let result = await CrashRecovery.recoverAllHeadless()
+                print("Recovered \(result.recovered) recording(s), skipped \(result.skipped).")
+                NSApp.terminate(nil)
+            }
+        } else {
+            Task { await CrashRecoveryPrompt.runIfNeeded() }
+        }
+        Task { await RetentionSweeper.sweepIfDue() }
+        // Dev affordance: this is a menu-bar app with no dock icon, so there's
+        // otherwise no way to open a window straight from a launch.
+        if let flag = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--settings") }) {
+            let requested = flag.split(separator: "=").last.map(String.init) ?? ""
+            let tab = SettingsTab(rawValue: requested) ?? .general
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(300))
+                self.openSettings(tab: tab)
+            }
+        }
         showOnboardingIfFirstLaunch()
         subscribePipelineNotifications()
     }
@@ -92,6 +113,10 @@ final class AppState {
 
     func openOnboarding() {
         onboarding.show()
+    }
+
+    func openSettings(tab: SettingsTab = .general) {
+        settings.show(tab: tab)
     }
 
     private func bootstrapCalendar() async {

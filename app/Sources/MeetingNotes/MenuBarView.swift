@@ -67,6 +67,11 @@ struct MenuBarView: View {
             }
             .keyboardShortcut("l")
 
+            Button("Settings…") {
+                appState.openSettings()
+            }
+            .keyboardShortcut(",")
+
             Button("Setup…") {
                 appState.openOnboarding()
             }

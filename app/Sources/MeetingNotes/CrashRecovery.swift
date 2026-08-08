@@ -64,6 +64,32 @@ enum CrashRecovery {
 
 }
 
+extension CrashRecovery {
+    /// Non-interactive recovery of every salvageable orphan. Backs the
+    /// `--recover-orphans` launch flag, which exists so a support conversation
+    /// can be "run this" rather than "click through this", and so the recovery
+    /// path can be exercised without a human at the keyboard.
+    static func recoverAllHeadless() async -> (recovered: Int, skipped: Int) {
+        guard let orphans = try? await findOrphans() else { return (0, 0) }
+        var recovered = 0
+        var skipped = 0
+        for orphan in orphans {
+            guard orphan.hasAudio else {
+                skipped += 1
+                continue
+            }
+            do {
+                try await recover(orphan)
+                recovered += 1
+            } catch {
+                print("Recovery failed for \(orphan.meeting.id): \(error)")
+                skipped += 1
+            }
+        }
+        return (recovered, skipped)
+    }
+}
+
 @MainActor
 enum CrashRecoveryPrompt {
     /// Runs once at launch, before the user starts anything new.
