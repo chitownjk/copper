@@ -158,11 +158,16 @@ the capture probe's two 1.5 s runs exactly — discovery, connect, startStream,
 frame timer, and teardown all work. What no headless check can prove: the
 rendered pixels in a real app. `Scripts/probe-companion-camera.swift` would
 prove it but camera TCC is auto-denied for CLI processes in the agent session
-("granted: false", no prompt). **A human opening Photo Booth and picking
-"Meeting Companion Camera" — expect color bars, a sweeping green block, and a
-counting frame number — is the last inch of E5.1 acceptance**, plus the
-uninstall path (`--uninstall-camera-extension`). Then the sink stream as its
-own step.
+("granted: false", no prompt). **Closed by the project owner's eyeball check**: screenshot shows the color
+bars, the green sweep block, and the counter at frame 628 (~21 s of live
+streaming) rendering in a client app. The tracer bullet — a test pattern from
+our own CMIO extension, selectable as a system camera — is done.
+
+Deliberately NOT yet exercised: the uninstall path
+(`--uninstall-camera-extension`). Testing it would tear down the approved
+state and cost another System Settings click; do it as the first step of the
+next camera session, when a reinstall is imminent anyway. Then the sink
+stream (app→extension frames) as its own step.
 
 ## Open work
 
