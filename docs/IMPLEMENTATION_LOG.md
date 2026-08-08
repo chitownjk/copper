@@ -228,6 +228,32 @@ Hard-won, log-verified facts from this step:
 New dev affordances: `--push-camera-frames[=seconds]` launch flag,
 `Scripts/list-cmio-devices.swift` (C-API view of devices + stream scopes).
 
+## E5.2 first slice — CompanionVideoCore + capture passthrough (August 2026)
+
+`CompanionVideoCore` now exists as a third product in the MeetingKit package
+(app-process only; the extension must never link it — rule 2).
+First inhabitant: `CameraCaptureService` — AVCaptureSession at
+`.hd1920x1080`, BGRA `AVCaptureVideoDataOutput`, frames delivered on a
+private queue. `CameraSinkClient.pushSampleBuffer` forwards capture buffers
+into the sink unchanged (dimension-checked against the extension's fixed
+1080p format; mismatches are dropped and counted, never sent).
+
+`--camera-passthrough[=seconds]` chains the whole thing: real camera →
+capture → sink → extension → virtual camera. **Built and installed but
+unverified** — it requires the camera TCC grant, which only a GUI launch
+with a user present can produce. Verification run for a human:
+
+```
+open -W --stdout /tmp/passthrough.log -a /Applications/MeetingNotes.app --args --camera-passthrough=30
+```
+
+approve the camera prompt on first run, watch Photo Booth's "Meeting
+Companion Camera" show the *real* camera image for ~30 s, then check
+`/tmp/passthrough.log` — captured/pushed counts should be ≈30×seconds and
+drops ≈0. That, plus the pattern check above, closes both eyeball items.
+
+67 package tests still pass (1 skipped: the gated model-download test).
+
 ## Open work
 
 ### Not started

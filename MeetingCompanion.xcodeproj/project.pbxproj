@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		AA00000000000000000000E1 /* MeetingCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000F1 /* MeetingCore */; };
 		AA00000000000000000000E2 /* MeetingProviders in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000F2 /* MeetingProviders */; };
+		AA00000000000000000000E4 /* CompanionVideoCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000F4 /* CompanionVideoCore */; };
 		AA00000000000000000000E3 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000F3 /* GRDB */; };
 		BB00000000000000000000E6 /* CameraExtension in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = BB00000000000000000000A6 /* com.strongrise.meetingcompanion.cameraextension.systemextension */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -55,6 +56,7 @@
 				AA00000000000000000000E1 /* MeetingCore in Frameworks */,
 				AA00000000000000000000E2 /* MeetingProviders in Frameworks */,
 				AA00000000000000000000E3 /* GRDB in Frameworks */,
+				AA00000000000000000000E4 /* CompanionVideoCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -104,6 +106,7 @@
 				AA00000000000000000000F1 /* MeetingCore */,
 				AA00000000000000000000F2 /* MeetingProviders */,
 				AA00000000000000000000F3 /* GRDB */,
+				AA00000000000000000000F4 /* CompanionVideoCore */,
 			);
 			productName = MeetingNotes;
 			productReference = AA00000000000000000000A4 /* MeetingNotes.app */;
@@ -409,6 +412,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AA0000000000000000000012 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
 			productName = GRDB;
+		};
+		AA00000000000000000000F4 /* CompanionVideoCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CompanionVideoCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

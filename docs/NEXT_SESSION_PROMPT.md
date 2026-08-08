@@ -52,11 +52,13 @@ card" transitions. That closes E5.1's transport step.
 after a replace, `launchctl print system | grep CMIOExtension` is the tell;
 bump `CFBundleVersion` and replace again.
 
-Then: **E5.2 capture pipeline** — `CompanionVideoCore` package,
-AVCaptureSession → CVPixelBuffer → (for now) straight into
-`CameraSinkClient`. The app will need camera TCC (usage description is
-already in the Info.plist). The dumb-extension rule (CLAUDE.md rule 2)
-still holds.
+The **E5.2 first slice is also built**: `CompanionVideoCore` (new MeetingKit
+product) with `CameraCaptureService`, and `--camera-passthrough[=seconds]`
+chaining real camera → sink → virtual camera. Unverified for the same TCC
+reason; the log has the exact verification run. Next E5.2 work after the
+eyeball checks pass: in-app live preview panel, device picker (incl.
+Continuity Camera), latency measurement (PRD wants ≤5 ms added), then
+segmentation (E5.3). The dumb-extension rule (CLAUDE.md rule 2) still holds.
 
 ### Whenever blocked
 

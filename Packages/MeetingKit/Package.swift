@@ -9,7 +9,8 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "MeetingCore", targets: ["MeetingCore"]),
-        .library(name: "MeetingProviders", targets: ["MeetingProviders"])
+        .library(name: "MeetingProviders", targets: ["MeetingProviders"]),
+        .library(name: "CompanionVideoCore", targets: ["CompanionVideoCore"])
     ],
     dependencies: [
         // WhisperKit (MIT) ships inside argmax-oss-swift alongside SpeakerKit (E7.1).
@@ -27,6 +28,12 @@ let package = Package(
         .target(
             name: "MeetingProviders",
             dependencies: ["MeetingCore"]
+        ),
+        // Video pillar (E5.2+): capture, later segmentation/compositing.
+        // App-process only — the camera extension must never link this
+        // (CLAUDE.md rule 2).
+        .target(
+            name: "CompanionVideoCore"
         ),
         .testTarget(
             name: "MeetingCoreTests",

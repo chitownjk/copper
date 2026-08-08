@@ -2,6 +2,7 @@ import Foundation
 import CoreMediaIO
 import CoreMedia
 import CoreVideo
+import CompanionVideoCore
 import os.log
 
 /// Connects to the camera extension's sink stream over the CoreMediaIO C API
@@ -112,6 +113,37 @@ final class CameraSinkClient {
         Self.logger.info("sink disconnected — pushed \(self.framesPushed), dropped \(self.framesDropped)")
     }
 
+    /// Enqueues an already-formed sample buffer (e.g. straight from an
+    /// AVCaptureVideoDataOutput). The buffer must match the extension's fixed
+    /// 1080p BGRA format — mismatched dimensions are dropped and counted.
+    @discardableResult
+    func pushSampleBuffer(_ sampleBuffer: CMSampleBuffer) -> Bool {
+        guard let queue else { return false }
+        if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
+            guard CVPixelBufferGetWidth(pixelBuffer) == Video.width,
+                  CVPixelBufferGetHeight(pixelBuffer) == Video.height else {
+                if framesDropped == 0 {
+                    Self.logger.error("dropping frame: \(CVPixelBufferGetWidth(pixelBuffer))x\(CVPixelBufferGetHeight(pixelBuffer)) does not match \(Video.width)x\(Video.height)")
+                }
+                framesDropped &+= 1
+                return false
+            }
+        }
+        guard CMSimpleQueueGetCount(queue) < CMSimpleQueueGetCapacity(queue) else {
+            framesDropped &+= 1
+            return false
+        }
+        let retained = Unmanaged.passRetained(sampleBuffer)
+        let status = CMSimpleQueueEnqueue(queue, element: retained.toOpaque())
+        if status == noErr {
+            framesPushed &+= 1
+            return true
+        }
+        retained.release()
+        framesDropped &+= 1
+        return false
+    }
+
     /// Draws one frame via `render` and enqueues it. Returns false when the
     /// sink queue is full (frame dropped) — normal flow control, not an error.
     @discardableResult
@@ -208,6 +240,36 @@ final class CameraSinkClient {
             mScope: CMIOObjectPropertyScope(kCMIOObjectPropertyScopeGlobal),
             mElement: CMIOObjectPropertyElement(kCMIOObjectPropertyElementMain)
         )
+    }
+}
+
+// MARK: - Capture passthrough probe
+
+/// `--camera-passthrough[=seconds]` support (E5.2 tracer): real camera →
+/// CameraCaptureService → sink stream → virtual camera. Needs the camera TCC
+/// grant, so it can only be verified with a user present.
+final class CameraPassthroughProbe {
+    struct Stats {
+        var captured: UInt64
+        var pushed: UInt64
+        var dropped: UInt64
+    }
+
+    func run(seconds: Double) async throws -> Stats {
+        guard await CameraCaptureService.requestAccess() else {
+            throw CameraCaptureService.CaptureError.cameraAccessDenied
+        }
+        let sink = CameraSinkClient()
+        try sink.connect()
+        let capture = CameraCaptureService()
+        capture.onFrame = { sampleBuffer in
+            sink.pushSampleBuffer(sampleBuffer)
+        }
+        try capture.start()
+        try await Task.sleep(for: .seconds(seconds))
+        capture.stop()
+        sink.disconnect()
+        return Stats(captured: capture.framesCaptured, pushed: sink.framesPushed, dropped: sink.framesDropped)
     }
 }
 

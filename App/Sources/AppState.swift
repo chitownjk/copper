@@ -45,6 +45,7 @@ final class AppState {
         Task { await RetentionSweeper.sweepIfDue() }
         handleCameraExtensionFlags()
         handleCameraSinkPushFlag()
+        handleCameraPassthroughFlag()
         // Dev affordance: this is a menu-bar app with no dock icon, so there's
         // otherwise no way to open a window straight from a launch.
         if let flag = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--settings") }) {
@@ -105,6 +106,23 @@ final class AppState {
                 print("camera sink: pushed \(stats.pushed) frame(s), dropped \(stats.dropped) over \(seconds)s")
             } catch {
                 print("camera sink: failed — \(error.localizedDescription)")
+            }
+            NSApp.terminate(nil)
+        }
+    }
+
+    /// `--camera-passthrough[=seconds]`: real camera → sink → virtual camera
+    /// (the E5.2 tracer). Requires the camera TCC grant, so run it from a GUI
+    /// launch with a user present. Default 30 s.
+    private func handleCameraPassthroughFlag() {
+        guard let flag = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--camera-passthrough") }) else { return }
+        let seconds = flag.split(separator: "=").last.flatMap { Double($0) } ?? 30
+        Task { @MainActor in
+            do {
+                let stats = try await CameraPassthroughProbe().run(seconds: seconds)
+                print("camera passthrough: captured \(stats.captured), pushed \(stats.pushed), dropped \(stats.dropped) over \(seconds)s")
+            } catch {
+                print("camera passthrough: failed — \(error.localizedDescription)")
             }
             NSApp.terminate(nil)
         }
