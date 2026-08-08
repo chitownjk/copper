@@ -191,6 +191,7 @@ private struct ModelRow: View {
 
 private struct SummarizationSettingsTab: View {
     @Bindable var model: SettingsModel
+    @State private var editorTarget: TemplateEditorTarget?
 
     var body: some View {
         Form {
@@ -199,6 +200,37 @@ private struct SummarizationSettingsTab: View {
                     ForEach(SummaryTemplateStore.all) { template in
                         Text(template.name).tag(template.id)
                     }
+                }
+            }
+
+            Section("Custom templates") {
+                ForEach(model.customTemplates) { template in
+                    HStack {
+                        Text(template.name)
+                        Spacer()
+                        Button {
+                            editorTarget = TemplateEditorTarget(template: template)
+                        } label: {
+                            Image(systemName: "pencil")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Edit template")
+                        Button {
+                            model.deleteCustomTemplate(id: template.id)
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Delete template")
+                    }
+                }
+                if model.customTemplates.isEmpty {
+                    Text("A template is a name plus the instructions the summarizer follows — e.g. “Board minutes” with your firm's format.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Button("Add Template…") {
+                    editorTarget = TemplateEditorTarget(template: nil)
                 }
             }
 
@@ -223,6 +255,62 @@ private struct SummarizationSettingsTab: View {
             }
         }
         .formStyle(.grouped)
+        .sheet(item: $editorTarget) { target in
+            TemplateEditorSheet(model: model, editing: target.template)
+        }
+    }
+}
+
+private struct TemplateEditorTarget: Identifiable {
+    let template: SummaryTemplate?
+    var id: String { template?.id ?? "new" }
+}
+
+private struct TemplateEditorSheet: View {
+    let model: SettingsModel
+    let editing: SummaryTemplate?
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String = ""
+    @State private var prompt: String = ""
+
+    private var canSave: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(editing == nil ? "New template" : "Edit template")
+                .font(.headline)
+
+            TextField("Name", text: $name, prompt: Text("Board minutes"))
+
+            Text("Instructions for the summarizer — tone, sections, what to ignore. The transcript is appended automatically.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextEditor(text: $prompt)
+                .font(.system(size: 12, design: .monospaced))
+                .frame(minHeight: 180)
+                .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(.quaternary))
+
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button(editing == nil ? "Create" : "Save") {
+                    model.saveCustomTemplate(id: editing?.id, name: name, prompt: prompt)
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!canSave)
+            }
+        }
+        .padding(16)
+        .frame(width: 460, height: 340)
+        .onAppear {
+            name = editing?.name ?? ""
+            prompt = editing?.systemPrompt ?? ""
+        }
     }
 }
 

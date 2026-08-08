@@ -94,6 +94,42 @@ final class SettingsModel {
         }
     }
 
+    // MARK: Custom templates (E2.5's missing editor)
+
+    // Stored (not computed from UserDefaults) so @Observable actually
+    // refreshes the Settings list after a save/delete.
+    private(set) var customTemplates: [SummaryTemplate] = SummaryTemplateStore.custom
+
+    /// `id == nil` creates; otherwise updates in place.
+    func saveCustomTemplate(id: String?, name: String, prompt: String) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty, !trimmedPrompt.isEmpty else { return }
+
+        var templates = SummaryTemplateStore.custom
+        if let id, let index = templates.firstIndex(where: { $0.id == id }) {
+            templates[index] = SummaryTemplate(id: id, name: trimmedName, systemPrompt: trimmedPrompt)
+        } else {
+            templates.append(SummaryTemplate(
+                id: "custom-\(UUID().uuidString.lowercased())",
+                name: trimmedName,
+                systemPrompt: trimmedPrompt
+            ))
+        }
+        SummaryTemplateStore.custom = templates
+        customTemplates = SummaryTemplateStore.custom
+    }
+
+    func deleteCustomTemplate(id: String) {
+        SummaryTemplateStore.custom.removeAll { $0.id == id }
+        customTemplates = SummaryTemplateStore.custom
+        // A deleted default silently becoming "general" at summarize time
+        // would be confusing — make the fallback visible immediately.
+        if SummaryTemplateStore.template(id: defaultTemplateID) == nil {
+            SummaryTemplateStore.selected = .general
+        }
+    }
+
     enum ValidationOutcome: Equatable {
         case ok
         case failed(String)
