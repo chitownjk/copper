@@ -26,14 +26,21 @@ enum CrashRecovery {
                 .order(Column("started_at").desc)
                 .fetchAll(db)
         }
-        return rows.map { Orphan(meeting: $0, audioBytes: audioBytes(in: $0.audioDir)) }
+        return rows.map {
+            Orphan(
+                meeting: $0,
+                audioBytes: RecordingArtifacts.audioBytes(in: URL(fileURLWithPath: $0.audioDir))
+            )
+        }
     }
 
     /// Marks the recording as ended and re-enters the normal post-meeting
     /// pipeline. An orphan with no audio can't be recovered — discard instead.
     static func recover(_ orphan: Orphan) async throws {
         let id = orphan.meeting.id
-        let endedAt = lastModified(in: orphan.meeting.audioDir) ?? Date().timeIntervalSince1970
+        let endedAt = RecordingArtifacts
+            .lastModified(in: URL(fileURLWithPath: orphan.meeting.audioDir))?
+            .timeIntervalSince1970 ?? Date().timeIntervalSince1970
         try await Database.shared.write { db in
             try db.execute(
                 sql: "UPDATE meetings SET ended_at = COALESCE(ended_at, ?) WHERE id = ?",
@@ -55,31 +62,6 @@ enum CrashRecovery {
         try? FileManager.default.removeItem(at: URL(fileURLWithPath: dir))
     }
 
-    // MARK: - Helpers
-
-    private static func audioBytes(in directory: String) -> Int64 {
-        let url = URL(fileURLWithPath: directory)
-        guard let names = try? FileManager.default.contentsOfDirectory(atPath: directory) else { return 0 }
-        return names
-            .filter { $0.hasSuffix(".wav") }
-            .reduce(into: Int64(0)) { total, name in
-                let size = try? url.appendingPathComponent(name)
-                    .resourceValues(forKeys: [.fileSizeKey]).fileSize
-                total += Int64(size ?? 0)
-            }
-    }
-
-    /// Best estimate of when the recording actually stopped: the newest write
-    /// to any of its audio files.
-    private static func lastModified(in directory: String) -> Double? {
-        let url = URL(fileURLWithPath: directory)
-        guard let names = try? FileManager.default.contentsOfDirectory(atPath: directory) else { return nil }
-        let dates = names.compactMap { name -> Date? in
-            try? url.appendingPathComponent(name)
-                .resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
-        }
-        return dates.max()?.timeIntervalSince1970
-    }
 }
 
 @MainActor

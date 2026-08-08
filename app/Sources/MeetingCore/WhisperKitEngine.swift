@@ -27,6 +27,7 @@ public actor WhisperKitEngine: TranscriptionEngine {
     public func prepare(
         modelID: String? = nil,
         allowDownload: Bool = true,
+        prewarm: Bool = false,
         progress: TranscriptionProgressHandler? = nil
     ) async throws -> WhisperKit {
         let modelID = modelID ?? WhisperModelStore.selectedModelID
@@ -60,7 +61,10 @@ public actor WhisperKitEngine: TranscriptionEngine {
             modelFolder: WhisperModelStore.localFolder(for: modelID).path,
             verbose: false,
             logLevel: .error,
-            prewarm: false,
+            // Prewarming forces Core ML to specialize the model for this Mac's
+            // ANE now. It roughly doubles load time, and is worth paying right
+            // after a download so the user's first meeting doesn't (E1.3).
+            prewarm: prewarm,
             load: true,
             download: false
         )

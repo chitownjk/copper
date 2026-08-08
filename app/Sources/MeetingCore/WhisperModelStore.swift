@@ -84,6 +84,10 @@ public enum WhisperModelStore {
             .reduce(0) { $0 + directorySize(localFolder(for: $1.id)) }
     }
 
+    public static func installedBytes(of modelID: String) -> Int64 {
+        directorySize(localFolder(for: modelID))
+    }
+
     private static func directorySize(_ url: URL) -> Int64 {
         guard let enumerator = FileManager.default.enumerator(
             at: url,
