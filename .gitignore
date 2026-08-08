@@ -1,0 +1,19 @@
+# Swift / SwiftPM
+.build/
+.swiftpm/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+
+# macOS
+.DS_Store
+
+# Reference-only GPL-3.0 checkout. Never vendored, never built, never
+# distributed — see hard rule 1 in CLAUDE.md and TD-1 in docs/TECH_PLAN.md.
+# Tracking it here would put GPL sources in a proprietary repo's history.
+webcamoid/
+
+# Secrets — API keys belong in the Keychain, never on disk.
+*.p12
+*.mobileprovision
+.env
