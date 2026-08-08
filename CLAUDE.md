@@ -4,6 +4,7 @@ One macOS app, two pillars: local meeting recording/transcription/notes (the exi
 
 **Read before doing anything:**
 - [docs/IMPLEMENTATION_LOG.md](docs/IMPLEMENTATION_LOG.md) — what has actually been built so far, what's partial, open concerns
+- [docs/NEXT_SESSION_PROMPT.md](docs/NEXT_SESSION_PROMPT.md) — a paste-able brief for a fresh session
 - [docs/HANDOVER.md](docs/HANDOVER.md) — condensed context from the strategy/audit session
 - [docs/PRD.md](docs/PRD.md) — product requirements (requirement IDs A1–D6)
 - [docs/TECH_PLAN.md](docs/TECH_PLAN.md) — architecture decisions TD-1…TD-8, risk register
