@@ -75,11 +75,12 @@ acceptance criterion and it also covers rate-limited or offline BYOK.
 
 ## Verification
 
-**62 tests, 0 failures** (`cd app && swift test`). Golden audio fixtures are
-bundled, so nothing needs an environment variable. One test is gated:
+**67 tests, 0 failures** (`cd Packages/MeetingKit && swift test`). Golden audio
+fixtures are bundled, so nothing needs an environment variable. One test is
+gated (the model is already installed on this Mac, so it runs in ~3 s here):
 
 ```bash
-cd app && MEETING_NOTES_RUN_TRANSCRIPTION=1 swift test --filter WhisperKitEngineIntegrationTests
+cd Packages/MeetingKit && MEETING_NOTES_RUN_TRANSCRIPTION=1 swift test --filter WhisperKitEngineIntegrationTests
 ```
 
 Measured, not asserted-from-theory:
@@ -175,9 +176,9 @@ sink stream (app→extension frames) as its own step.
 
 ### Partial
 
-- **Custom summary templates** have a store (`SummaryTemplateStore.custom`) and
-  are picked up by the Settings dropdown, but there is no editor UI. Built-ins
-  work fully.
+- ~~Custom summary templates editor~~ **Done** — Settings > Summaries has
+  add/edit/delete with a name + instructions sheet; deleting the current
+  default falls back to General visibly.
 - **Per-meeting retention pinning**: the column, the sweep logic, and the
   "Apply Retention Now" button all exist. There is no UI to *set* the pin — that
   belongs in the meeting detail view, which E3.2 rewrites anyway.
@@ -216,7 +217,12 @@ sink stream (app→extension frames) as its own step.
 5. **The 8-second bundled fixture is a slice, not a whole meeting.** Good enough
    for the mixer and a smoke transcription. Chunking behaviour over a genuinely
    long meeting (2 hours, map-reduce across many chunks with a cloud provider)
-   has only been tested with synthetic text.
+   has only been tested with synthetic text. This concern already paid out
+   once: the on-device budget assumed ~4 chars/token, real timestamped
+   transcripts run ~2.6, and the 4,096-token window (which includes the
+   *output*) blew mid-generation. Fixed for Apple FM (6,000-char budget +
+   1,024-token response cap, 3/3 live passes); the cloud providers' budgets
+   rest on the same heuristic and deserve the same scrutiny on first live use.
 
 6. **Nothing is signed or notarized**, so the camera extension (which requires
    Developer ID + notarization + `/Applications`) remains entirely unproven.
