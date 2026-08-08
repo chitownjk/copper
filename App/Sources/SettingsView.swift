@@ -70,13 +70,29 @@ private struct TranscriptionSettingsTab: View {
 
     var body: some View {
         Form {
+            Section("Engine") {
+                Picker("Transcription engine", selection: $model.transcriptionEngineID) {
+                    Text("Whisper (downloadable model)").tag(TranscriptionEngineID.whisperKit)
+                    if model.speechAnalyzerSupported {
+                        Text("Apple (no download)").tag(TranscriptionEngineID.speechAnalyzer)
+                    }
+                }
+                Text(model.speechAnalyzerSupported
+                     ? "Apple's engine starts instantly with no model download. Whisper is the accuracy option and supports auto-detecting the language."
+                     : "Apple's no-download engine needs macOS 26 or later.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Language") {
                 Picker("Spoken language", selection: $model.languageCode) {
                     ForEach(SettingsModel.languages, id: \.name) { language in
                         Text(language.name).tag(language.code)
                     }
                 }
-                Text("Auto-detect works well for a single language per meeting. Pick one explicitly if detection guesses wrong.")
+                Text(model.transcriptionEngineID == .speechAnalyzer
+                     ? "Apple's engine can't auto-detect: it transcribes in this Mac's language unless you pick one."
+                     : "Auto-detect works well for a single language per meeting. Pick one explicitly if detection guesses wrong.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

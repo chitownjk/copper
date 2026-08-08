@@ -22,6 +22,14 @@ final class SettingsModel {
 
     let modelManager = WhisperModelManager.shared
 
+    var transcriptionEngineID: TranscriptionEngineID {
+        get { TranscriptionSettings.engineID }
+        set { TranscriptionSettings.engineID = newValue }
+    }
+
+    /// Whether this Mac has Apple's SpeechAnalyzer engine at all (macOS 26+).
+    let speechAnalyzerSupported = SpeechAnalyzerEngine.isSupportedOnThisOS
+
     var selectedModelID: String {
         get { WhisperModelStore.selectedModelID }
         set {

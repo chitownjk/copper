@@ -12,8 +12,9 @@ extension Notification.Name {
 actor Pipeline {
     static let shared = Pipeline()
 
-    /// Swapped for `SpeechAnalyzerEngine` on macOS 26+ in E1.4.
-    private let engine: TranscriptionEngine = WhisperKitEngine.shared
+    /// Resolved per run so an engine change in Settings applies to the next
+    /// meeting without a restart (E1.4).
+    private var engine: TranscriptionEngine { TranscriptionEngines.current() }
 
     func process(meetingId: String) async {
         do {

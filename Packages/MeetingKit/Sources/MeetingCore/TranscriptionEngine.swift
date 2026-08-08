@@ -51,10 +51,41 @@ public enum TranscriptionError: Error, LocalizedError {
     }
 }
 
+public enum TranscriptionEngineID: String, CaseIterable, Sendable {
+    case whisperKit = "whisperkit"
+    case speechAnalyzer = "speechanalyzer"
+}
+
+/// The one place that turns the engine *setting* into an engine *instance*.
+public enum TranscriptionEngines {
+    public static func current() -> TranscriptionEngine {
+        switch TranscriptionSettings.engineID {
+        case .speechAnalyzer where SpeechAnalyzerEngine.isSupportedOnThisOS:
+            return SpeechAnalyzerEngine()
+        case .speechAnalyzer, .whisperKit:
+            // A stale "speechanalyzer" preference on an OS that lost it (e.g.
+            // migrated preferences onto an older Mac) falls back to Whisper
+            // rather than failing every meeting.
+            return WhisperKitEngine.shared
+        }
+    }
+}
+
 /// User-facing transcription preferences. Replaces the hardcoded `-l en` the
 /// whisper-cli invocation used to pass.
 public enum TranscriptionSettings {
     private static let languageKey = "transcriptionLanguage"
+    private static let engineKey = "transcriptionEngine"
+
+    public static var engineID: TranscriptionEngineID {
+        get {
+            let stored = UserDefaults.standard.string(forKey: engineKey) ?? ""
+            return TranscriptionEngineID(rawValue: stored) ?? .whisperKit
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: engineKey)
+        }
+    }
 
     /// `nil` means auto-detect.
     public static var language: String? {

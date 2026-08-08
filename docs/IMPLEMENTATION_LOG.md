@@ -7,23 +7,39 @@ Companion to [BACKLOG.md](BACKLOG.md) (story IDs) and [TECH_PLAN.md](TECH_PLAN.m
 "Meeting Companion"; the real name is still an open product decision (PRD §8),
 and only the repo name and window titles would need to change.
 
-**Status: M1 complete and verified in the shipping binary. M2 partially done.**
+**Status: M1 complete and verified in the shipping binary. M2 well underway —
+E3.1 (Xcode workspace) and E1.4 (SpeechAnalyzer) are done; the E5.1 tracer
+bullet is one System Settings approval click away from proven.**
 The app has no external-binary dependencies — `grep -rn "Process()\|/opt/homebrew"
-app/Sources/` matches nothing but comments. On a machine with Apple Intelligence
-it records → mixes → transcribes → summarizes with zero configuration.
+App/Sources Packages/` matches nothing but comments. On a machine with Apple
+Intelligence it records → mixes → transcribes → summarizes with zero configuration.
+
+**The bundle identifier changed** (August 2026): `com.meetingnotes.app` turned
+out to be registered to a different team on Apple's developer portal and could
+never be provisioned. The app is now `com.strongrise.meetingcompanion` under
+team GJPMXXQTWN. `LegacyDefaultsMigration` copies the old UserDefaults domain
+once; the database/recordings (name-based path) and Keychain (literal service
+string) were never keyed by bundle ID.
 
 ---
 
-## Package layout (TD-6 groundwork)
+## Project layout (E3.1, per TD-6)
 
-| Target | Contents | Maps to (TD-6) |
-|---|---|---|
-| `MeetingCore` | `AudioMixer`, `TranscriptionEngine` + `WhisperKitEngine`, `WhisperModelStore` + `WhisperModelManager`, `RetentionPolicy`, `RecordingArtifacts`, `DiskSpace`, `Paths` | `CompanionCore` |
-| `MeetingProviders` | `SummaryProvider` + 4 backends, templates, map-reduce chunking, `KeychainStore` | `CompanionProviders` |
-| `MeetingNotes` | SwiftUI app, DB + migrations, pipeline, calendar, windows | App target |
-| `MeetingCoreTests` / `MeetingProvidersTests` | 62 tests, bundled audio fixtures | — |
+`MeetingCompanion.xcworkspace` wraps a hand-authored `MeetingCompanion.xcodeproj`
+(objectVersion 77, file-system-synchronized groups — no per-file bookkeeping)
+plus the local package. **`swift test` now runs from `Packages/MeetingKit`.**
 
-`CompanionVideoCore` doesn't exist yet — it arrives with E5.
+| Where | Contents |
+|---|---|
+| `App/` | Xcode app target: SwiftUI shell, DB + migrations, pipeline, calendar, windows, Info.plist, entitlements |
+| `CameraExtension/` | CMIO system-extension target (E5.1): provider/device/stream + test card, deliberately dumb |
+| `Packages/MeetingKit` | Local SwiftPM package, products `MeetingCore` + `MeetingProviders`, all tests + fixtures |
+
+The app target is signed automatically (team GJPMXXQTWN, Apple Development)
+with hardened runtime; the app is deliberately NOT sandboxed (sandboxing would
+relocate Application Support away from existing data — that move is E3.5's).
+GRDB is a project-level package dependency now; the package only depends on
+argmax-oss-swift. `CompanionVideoCore` still doesn't exist — it arrives with E5.2+.
 
 ---
 
@@ -38,6 +54,8 @@ it records → mixes → transcribes → summarizes with zero configuration.
 | **E1.6** Remove `claude` CLI | Summarization is best-effort; a transcript always survives. |
 | **E2.1–E2.5** Provider layer | Apple FM / Anthropic / OpenAI / local server, templates, provenance. |
 | **E3.4** Settings window | Four tabs, deep-linkable, retention policy + daily sweep. |
+| **E3.1** Xcode workspace | Hand-authored project, synchronized groups; app + extension targets; `swift test` green after the move; `--recover-orphans` / `--settings` verified from the .app bundle. |
+| **E1.4** SpeechAnalyzer engine | `SpeechAnalyzerEngine` behind `TranscriptionEngine`; Settings picker "Apple (no download)"; engine resolved per pipeline run, stale prefs fall back to Whisper. |
 
 ### Behavioural changes worth knowing
 
@@ -70,6 +88,7 @@ Measured, not asserted-from-theory:
 | Mixer output length vs ffmpeg | **Exact** (130,560 frames on the bundled fixture; 491,200 on the full 30.7 s recording) |
 | Mixer fidelity vs ffmpeg | 38.0 dB wideband, 61.8 dB below 4 kHz — residual is 6–8 kHz transition-band rolloff only |
 | Transcription throughput | 30.7 s of audio in 3.3 s warm (~9× realtime) |
+| SpeechAnalyzer vs WhisperKit on the bundled fixture | Same 3-segment structure; boundaries agree within 0–580 ms (Whisper pads to round times, SA hugs speech onsets); SA 0.3 s vs Whisper 2.9 s warm; SA misheard the boundary-clipped last word ("audience" for "audio") — TD-2's quality ranking is real |
 | First transcription after download | **244 s** — Core ML ANE specialization. Now paid during install via prewarm. |
 | Model integrity check | Accepts the real 626 MB install, rejects a gutted one |
 
@@ -103,20 +122,57 @@ icon, so there is otherwise no way into a window from a cold launch.
 
 ---
 
+## E5.1 tracer bullet — where it stands (August 2026)
+
+Everything up to the human approval step is **proven on this Mac**:
+`systemextensionsctl list` shows `com.strongrise.meetingcompanion.cameraextension
+(0.1.0/1) [activated waiting for user]`. Breakdown and failure-mode notes in
+[E5.1_TRACER.md](E5.1_TRACER.md). Dev loop: build → `cp -R` the app to
+`/Applications` → `--install-camera-extension`.
+
+Hard-won, log-verified facts:
+
+1. **The CMIO category validator on macOS 26 rejects a team-ID-prefixed
+   `CMIOExtensionMachServiceName`** (paramErr -50, "must be prefixed with one
+   of the App Groups in the entitlement") — contrary to WWDC22-era docs. The
+   extension carries app group `GJPMXXQTWN.com.strongrise.meetingcompanion`
+   and the mach service name is prefixed by it. The app will adopt the same
+   group for the sink stream.
+2. The System Extension entitlement is **self-service** for this team —
+   `-allowProvisioningUpdates` registered the App ID, this Mac, and minted the
+   development profile non-interactively. No Apple approval request, no latency.
+3. A failed activation leaves a half-uninstalled registration; an immediately
+   repeated request can race it ("Category delegate returned error"). Retry
+   once the state settles.
+4. The extension's Info.plist needs `NSSystemExtensionUsageDescription` (error
+   is explicit about it).
+
+Remaining for E5.1 acceptance: approve in System Settings → verify the camera
+appears in Photo Booth / Zoom / a discovery probe → uninstall path. Then the
+sink stream (app→extension frames) as its own step.
+
 ## Open work
 
 ### Not started
 
-- **E1.4 SpeechAnalyzer engine.** `TranscriptionEngine` is the seam; add
-  `SpeechAnalyzerEngine` and pick it in `Pipeline.engine`. Nothing blocks it,
-  and this Mac can run it.
 - **E2.6 quick actions.** "Regenerate" / "Shorter" / "As follow-up email" are UI
   only — `Pipeline.regenerateSummary(meetingId:template:)` already does the work.
-- **E3.1 Xcode migration**, **E3.2 unified main window**, **E3.3 onboarding
-  rewrite**, **E3.5 brand pass**, **E4 signing/DMG/Sparkle**. E3.1 is the hard
-  prerequisite for the camera extension and for signing.
-- **E5 video pillar.** Untouched. The E5.1 tracer bullet is the single riskiest
-  item in the whole plan (TECH_PLAN R1) and should start during M2, not M3.
+- **E3.2 unified main window**, **E3.3 onboarding rewrite**, **E3.5 brand pass**
+  (bundle ID already moved to `com.strongrise.meetingcompanion`; visible name
+  still "MeetingNotes"), **E4 signing/DMG/Sparkle** (see "User actions" below).
+- **E5.2+**: capture/render pipeline, segmentation, overlays — gated on the
+  E5.1 approval verification.
+
+### User actions required (nobody else can do these)
+
+- **Approve the camera extension**: System Settings → General → Login Items &
+  Extensions → Camera Extensions → allow "Meeting Companion Camera".
+- **E4.1 Developer ID**: the keychain has only an Apple Development cert.
+  Creating a **Developer ID Application** certificate must be done by the
+  team's Account Holder at developer.apple.com. Notarization also needs an
+  App Store Connect API key or app-specific password for `notarytool`.
+- Optional hygiene: a leftover `com.splitmedialabs.virtcam.extension` sits in
+  "terminated waiting to uninstall on reboot"; a reboot flushes it.
 
 ### Partial
 
