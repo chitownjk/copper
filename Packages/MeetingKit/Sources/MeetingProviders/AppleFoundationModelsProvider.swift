@@ -10,9 +10,14 @@ import FoundationModels
 /// Compiled against the macOS 26 SDK but gated at runtime, so the same binary
 /// still launches on macOS 14/15 with this provider reporting `.unavailable`.
 public struct AppleFoundationModelsProvider: SummaryProvider {
-    /// The on-device model's context window is small next to a cloud model's,
-    /// so long meetings map-reduce far more often here.
-    public static let contextCharacterBudget = 12_000
+    /// The on-device model's 4,096-token window covers the instructions, the
+    /// input, AND the generated output combined. Timestamped transcript lines
+    /// tokenize measurably worse than prose — observed ~2.6 chars/token, the
+    /// "[00:00:00 TRANSCRIPT]" prefixes are nearly one token per character —
+    /// so budget for 2.5 chars/token: 6,000 chars ≈ 2,400 tokens input,
+    /// ~250 instructions, 1,024 response cap, ~400 margin. The original
+    /// 12,000 (and even 8,000) overflowed mid-generation on real runs.
+    public static let contextCharacterBudget = 6_000
 
     public init() {}
 
@@ -63,7 +68,15 @@ public struct AppleFoundationModelsProvider: SummaryProvider {
             contextCharacterBudget: Self.contextCharacterBudget,
             generator: TextGenerator { system, user in
                 let session = LanguageModelSession(instructions: system)
-                let response = try await session.respond(to: user)
+                // The 4,096-token window is shared by instructions, input, and
+                // output. An unbounded response can blow the window mid-
+                // generation (seen live: repetitive transcripts make the model
+                // ramble). 1,024 output tokens + an 8,000-char input budget
+                // keeps the sum safely inside the window.
+                let response = try await session.respond(
+                    to: user,
+                    options: GenerationOptions(maximumResponseTokens: 1_024)
+                )
                 let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty else { throw SummaryProviderError.emptyResponse }
                 return text
