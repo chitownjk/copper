@@ -1,18 +1,90 @@
+import AppKit
 import Foundation
 import GRDB
 import MeetingCore
 
 enum Database {
-    static let shared: DatabaseQueue = {
+    /// First touch happens on the main thread during `AppState.init`. On an
+    /// unreadable store this blocks on a modal (same precedent as the crash-
+    /// recovery prompt) instead of the old `fatalError` — a corrupt file, a
+    /// full disk, or a bad migration used to kill the app with no message.
+    static let shared: DatabaseQueue = open()
+
+    private static func open() -> DatabaseQueue {
+        let dbURL = Paths.applicationSupport.appendingPathComponent("meetings.sqlite")
         do {
-            let dbURL = Paths.applicationSupport.appendingPathComponent("meetings.sqlite")
-            let queue = try DatabaseQueue(path: dbURL.path)
-            try migrator.migrate(queue)
-            return queue
+            return try openAndMigrate(dbURL)
         } catch {
-            fatalError("Database init failed: \(error)")
+            switch promptForRecovery(error: error, dbURL: dbURL) {
+            case .quit:
+                exit(0)
+            case .startFresh:
+                moveAside(dbURL)
+                do {
+                    return try openAndMigrate(dbURL)
+                } catch {
+                    // A fresh file also failing means the problem is the
+                    // location (permissions, disk), not the data.
+                    presentFatal(error)
+                    exit(1)
+                }
+            }
         }
-    }()
+    }
+
+    private static func openAndMigrate(_ url: URL) throws -> DatabaseQueue {
+        let queue = try DatabaseQueue(path: url.path)
+        try migrator.migrate(queue)
+        return queue
+    }
+
+    private enum RecoveryChoice { case quit, startFresh }
+
+    private static func promptForRecovery(error: Error, dbURL: URL) -> RecoveryChoice {
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "Your meeting library can’t be opened"
+        alert.informativeText = """
+        The database at \(dbURL.path) couldn’t be read:
+
+        \(error.localizedDescription)
+
+        You can set the unreadable file aside and start with an empty library. \
+        The old file is kept next to the new one, and your audio recordings \
+        are not touched either way.
+        """
+        alert.addButton(withTitle: "Back Up and Start Fresh")
+        alert.addButton(withTitle: "Quit")
+        return alert.runModal() == .alertFirstButtonReturn ? .startFresh : .quit
+    }
+
+    /// Preserves the unreadable store (plus SQLite sidecar files) under a
+    /// timestamped name so support can attempt recovery later.
+    private static func moveAside(_ dbURL: URL) {
+        let stamp = ISO8601DateFormatter().string(from: Date())
+            .replacingOccurrences(of: ":", with: "-")
+        let fm = FileManager.default
+        for suffix in ["", "-wal", "-shm"] {
+            let source = URL(fileURLWithPath: dbURL.path + suffix)
+            guard fm.fileExists(atPath: source.path) else { continue }
+            let destination = URL(fileURLWithPath: dbURL.path + ".unreadable-\(stamp)" + suffix)
+            try? fm.moveItem(at: source, to: destination)
+        }
+    }
+
+    private static func presentFatal(_ error: Error) {
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "Meeting library can’t be created"
+        alert.informativeText = """
+        Even a brand-new database couldn’t be created — this usually means the \
+        disk is full or Application Support isn’t writable.
+
+        \(error.localizedDescription)
+        """
+        alert.addButton(withTitle: "Quit")
+        alert.runModal()
+    }
 
     static var migrator: DatabaseMigrator {
         var m = DatabaseMigrator()

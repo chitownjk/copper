@@ -188,11 +188,15 @@ sink stream (app→extension frames) as its own step.
 
 ## Concerns
 
-1. **`Database.swift` still `fatalError`s on init.** A corrupt or unwritable
-   database kills the app at launch with no message. `Database.shared` is
-   non-optional at ~15 call sites, so fixing it is a UI-design question (what
-   does the app *do* in that state?), not a mechanical change. Worth a decision
-   before shipping to strangers.
+1. ~~`Database.swift` `fatalError`s on init~~ **Fixed.** An unreadable store
+   now raises a modal: Quit, or set the bad file aside (kept as
+   `meetings.sqlite.unreadable-<timestamp>` with its -wal/-shm) and start with
+   an empty library; recordings are never touched. A fresh file failing too
+   (full disk, unwritable dir) gets an explanatory alert, then exit. Verified
+   with a real garbage file: app survives and prompts where it used to crash;
+   restore + relaunch behaves normally. The "start fresh" *button click*
+   itself isn't automated-tested (needs assistive access) — logic is three
+   file moves + reopen.
 
 2. **The modal recovery alert blocks at launch.** `NSAlert.runModal()` in
    `CrashRecoveryPrompt` runs a nested run loop before the menu bar is usable.
