@@ -19,23 +19,47 @@ final class CompanionCameraController {
         case failed(String)
     }
 
+    enum LogoSize: String, CaseIterable {
+        case small, medium, large
+
+        var fraction: CGFloat {
+            switch self {
+            case .small: return 0.06
+            case .medium: return 0.10
+            case .large: return 0.16
+            }
+        }
+
+        var label: String { rawValue.capitalized }
+    }
+
     private(set) var state: State = .off
     private(set) var logoURL: URL?
+    private(set) var logoSize: LogoSize = .medium
+    private(set) var mirrorsOutput = false
 
     private var capture: CameraCaptureService?
     private var sink: CameraSinkClient?
     private let composer = FrameComposer()
 
     nonisolated static let logoDefaultsKey = "videoLogoPath"
+    nonisolated static let logoSizeDefaultsKey = "videoLogoSize"
+    nonisolated static let mirrorDefaultsKey = "videoMirrorOutput"
 
     init() {
-        if let path = UserDefaults.standard.string(forKey: Self.logoDefaultsKey) {
+        let defaults = UserDefaults.standard
+        if let raw = defaults.string(forKey: Self.logoSizeDefaultsKey), let size = LogoSize(rawValue: raw) {
+            logoSize = size
+        }
+        mirrorsOutput = defaults.bool(forKey: Self.mirrorDefaultsKey)
+        composer.setMirrorOutput(mirrorsOutput)
+        if let path = defaults.string(forKey: Self.logoDefaultsKey) {
             let url = URL(fileURLWithPath: path)
-            if composer.setLogo(url: url) {
+            if composer.setLogo(url: url, heightFraction: logoSize.fraction) {
                 logoURL = url
             } else {
                 // Logo file moved or deleted since last run — forget it.
-                UserDefaults.standard.removeObject(forKey: Self.logoDefaultsKey)
+                defaults.removeObject(forKey: Self.logoDefaultsKey)
             }
         }
     }
@@ -82,7 +106,7 @@ final class CompanionCameraController {
     /// immediately, including mid-stream.
     func setLogo(url: URL?) {
         if let url {
-            guard composer.setLogo(url: url) else {
+            guard composer.setLogo(url: url, heightFraction: logoSize.fraction) else {
                 state = state == .live ? .live : .failed("Could not load logo image")
                 return
             }
@@ -93,5 +117,23 @@ final class CompanionCameraController {
             UserDefaults.standard.removeObject(forKey: Self.logoDefaultsKey)
             logoURL = nil
         }
+    }
+
+    func setLogoSize(_ size: LogoSize) {
+        logoSize = size
+        UserDefaults.standard.set(size.rawValue, forKey: Self.logoSizeDefaultsKey)
+        if let logoURL {
+            composer.setLogo(url: logoURL, heightFraction: size.fraction)
+        }
+    }
+
+    /// Flips the outgoing frames horizontally — including for remote
+    /// participants. Meeting apps mirror only your local self-view, so most
+    /// people want this OFF; it exists for those who want their self-view
+    /// to read correctly and don't mind the flip on the far side.
+    func setMirrorOutput(_ enabled: Bool) {
+        mirrorsOutput = enabled
+        UserDefaults.standard.set(enabled, forKey: Self.mirrorDefaultsKey)
+        composer.setMirrorOutput(enabled)
     }
 }

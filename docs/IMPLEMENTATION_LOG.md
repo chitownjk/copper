@@ -311,9 +311,23 @@ Settings Video section during the settings cleanup (with one-click tabs);
 the logo must persist with or without filters/backgrounds — satisfied by
 compositing in-app, upstream of everything.
 
-Not yet human-verified: the menu-bar Go Live/Stop/logo-picker interactions
-(agent session cannot click menus; the underlying pipeline is the
-measured one above).
+**Go Live + logo human-verified in a real Meet call** (owner, August 2026)
+— after fixing a video feedback loop: macOS had made our own virtual
+camera the *system default*, so Go Live captured the extension's test
+card and fed it back to itself, logo stacking on top (log-verified:
+"capturing from Meeting Companion Camera"). `CameraCaptureService.start`
+now takes `excludingUniqueID` (the virtual camera's fixed UID); the
+system default falls through to the first real camera and explicit
+capture of our own device is refused. Never capture yourself.
+
+Owner-requested follow-ups, shipped same session: logo Size picker
+(Small 6% / Medium 10% / Large 16% of frame height) and a "Mirror Output"
+toggle (whole-frame horizontal flip in FrameComposer, off by default,
+labeled "flips for viewers too"). On mirroring: meeting apps mirror only
+the local self-view — remote participants see our frames un-flipped; the
+reversed logo the owner saw was their own Meet self-tile. Verify claims
+about "what others see" from a second device before changing stream
+orientation.
 
 ## Open work
 

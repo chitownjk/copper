@@ -133,9 +133,25 @@ struct MenuBarView: View {
         } else {
             Menu("Camera Logo: \(appState.camera.logoURL?.lastPathComponent ?? "")") {
                 Button("Change Logo…") { chooseLogo() }
+                Picker("Size", selection: Binding(
+                    get: { appState.camera.logoSize },
+                    set: { appState.camera.setLogoSize($0) }
+                )) {
+                    ForEach(CompanionCameraController.LogoSize.allCases, id: \.self) { size in
+                        Text(size.label).tag(size)
+                    }
+                }
                 Button("Remove Logo") { appState.camera.setLogo(url: nil) }
             }
         }
+
+        // Off by default: meeting apps mirror only your local self-view, so
+        // remote participants already see everything the right way round.
+        // This flips what THEY see too.
+        Toggle("Mirror Output (flips for viewers too)", isOn: Binding(
+            get: { appState.camera.mirrorsOutput },
+            set: { appState.camera.setMirrorOutput($0) }
+        ))
     }
 
     private func chooseLogo() {

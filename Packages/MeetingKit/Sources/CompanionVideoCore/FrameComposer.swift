@@ -23,9 +23,10 @@ public final class FrameComposer {
     private var pool: CVPixelBufferPool!
 
     // Read on the capture queue every frame, written from the main thread
-    // when the user picks a logo.
-    private let logoLock = NSLock()
+    // when the user changes logo or mirror settings.
+    private let stateLock = NSLock()
     private var logoImage: CIImage?
+    private var mirrorOutput = false
 
     private var loggedScaleEngaged = false
 
@@ -40,13 +41,13 @@ public final class FrameComposer {
     }
 
     /// Sets (or clears, with nil) the logo overlay. PNG with alpha is the
-    /// expected input. Scaled to 10% of frame height, anchored bottom-right
-    /// with a 48 px margin — drag-to-place arrives with E5.4 proper.
-    /// Returns false when the image cannot be loaded. Thread-safe.
+    /// expected input. `heightFraction` of the frame height, anchored
+    /// bottom-right with a 48 px margin — drag-to-place arrives with E5.4
+    /// proper. Returns false when the image cannot be loaded. Thread-safe.
     @discardableResult
-    public func setLogo(url: URL?) -> Bool {
+    public func setLogo(url: URL?, heightFraction: CGFloat = 0.10) -> Bool {
         guard let url else {
-            logoLock.withLock { logoImage = nil }
+            stateLock.withLock { logoImage = nil }
             Self.logger.info("logo cleared")
             return true
         }
@@ -54,28 +55,37 @@ public final class FrameComposer {
             Self.logger.error("logo failed to load from \(url.path, privacy: .public)")
             return false
         }
-        let targetHeight = CGFloat(Self.height) * 0.10
+        let targetHeight = CGFloat(Self.height) * heightFraction
         let scale = targetHeight / image.extent.height
         let scaled = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
         let positioned = scaled.transformed(by: CGAffineTransform(
             translationX: CGFloat(Self.width) - 48 - scaled.extent.width - scaled.extent.origin.x,
             y: 48 - scaled.extent.origin.y
         ))
-        logoLock.withLock { logoImage = positioned }
+        stateLock.withLock { logoImage = positioned }
         Self.logger.info("logo set from \(url.lastPathComponent, privacy: .public) (\(Int(scaled.extent.width))x\(Int(scaled.extent.height)))")
         return true
+    }
+
+    /// Flips the entire outgoing frame horizontally — logo included. Note
+    /// this changes what remote participants receive: meeting apps mirror
+    /// only your local self-view, so with this OFF remote viewers already
+    /// see everything (text, logo) the right way round. Thread-safe.
+    public func setMirrorOutput(_ enabled: Bool) {
+        stateLock.withLock { mirrorOutput = enabled }
+        Self.logger.info("mirror output \(enabled ? "on" : "off")")
     }
 
     /// Returns a 1920×1080 BGRA buffer ready for the sink: the input itself
     /// when nothing needs doing, otherwise a rendered copy (scaled and/or
     /// logo-composited). nil if rendering fails.
     public func compose(_ input: CVPixelBuffer) -> CVPixelBuffer? {
-        let logo = logoLock.withLock { logoImage }
+        let (logo, mirror) = stateLock.withLock { (logoImage, mirrorOutput) }
         let width = CVPixelBufferGetWidth(input)
         let height = CVPixelBufferGetHeight(input)
         let matches = width == Self.width && height == Self.height
             && CVPixelBufferGetPixelFormatType(input) == kCVPixelFormatType_32BGRA
-        if matches, logo == nil {
+        if matches, logo == nil, !mirror {
             return input
         }
 
@@ -93,7 +103,11 @@ public final class FrameComposer {
                 y: -scaled.extent.origin.y - (scaled.extent.height - CGFloat(Self.height)) / 2
             ))
         }
-        let composed = logo.map { $0.composited(over: base) } ?? base
+        var composed = logo.map { $0.composited(over: base) } ?? base
+        if mirror {
+            // x' = width - x: horizontal flip of the full frame.
+            composed = composed.transformed(by: CGAffineTransform(-1, 0, 0, 1, CGFloat(Self.width), 0))
+        }
 
         var output: CVPixelBuffer?
         CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &output)
