@@ -113,26 +113,40 @@ final class CameraSinkClient {
         Self.logger.info("sink disconnected — pushed \(self.framesPushed), dropped \(self.framesDropped)")
     }
 
-    /// Enqueues an already-formed sample buffer (e.g. straight from an
-    /// AVCaptureVideoDataOutput). The buffer must match the extension's fixed
-    /// 1080p BGRA format — mismatched dimensions are dropped and counted.
+    /// Wraps a pixel buffer in a sample buffer stamped with the sink's fixed
+    /// 1080p format and enqueues it. Mismatched dimensions are dropped and
+    /// counted — normalize upstream (FrameNormalizer) before pushing.
     @discardableResult
-    func pushSampleBuffer(_ sampleBuffer: CMSampleBuffer) -> Bool {
+    func pushPixelBuffer(_ pixelBuffer: CVPixelBuffer) -> Bool {
         guard let queue else { return false }
-        if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
-            guard CVPixelBufferGetWidth(pixelBuffer) == Video.width,
-                  CVPixelBufferGetHeight(pixelBuffer) == Video.height else {
-                if framesDropped == 0 {
-                    Self.logger.error("dropping frame: \(CVPixelBufferGetWidth(pixelBuffer))x\(CVPixelBufferGetHeight(pixelBuffer)) does not match \(Video.width)x\(Video.height)")
-                }
-                framesDropped &+= 1
-                return false
+        guard CVPixelBufferGetWidth(pixelBuffer) == Video.width,
+              CVPixelBufferGetHeight(pixelBuffer) == Video.height else {
+            if framesDropped == 0 {
+                Self.logger.error("dropping frame: \(CVPixelBufferGetWidth(pixelBuffer))x\(CVPixelBufferGetHeight(pixelBuffer)) does not match \(Video.width)x\(Video.height)")
             }
+            framesDropped &+= 1
+            return false
         }
         guard CMSimpleQueueGetCount(queue) < CMSimpleQueueGetCapacity(queue) else {
             framesDropped &+= 1
             return false
         }
+
+        var timing = CMSampleTimingInfo(
+            duration: CMTime(value: 1, timescale: Video.fps),
+            presentationTimeStamp: CMClockGetTime(CMClockGetHostTimeClock()),
+            decodeTimeStamp: .invalid
+        )
+        var sampleBuffer: CMSampleBuffer?
+        CMSampleBufferCreateReadyWithImageBuffer(
+            allocator: kCFAllocatorDefault,
+            imageBuffer: pixelBuffer,
+            formatDescription: formatDescription,
+            sampleTiming: &timing,
+            sampleBufferOut: &sampleBuffer
+        )
+        guard let sampleBuffer else { return false }
+
         let retained = Unmanaged.passRetained(sampleBuffer)
         let status = CMSimpleQueueEnqueue(queue, element: retained.toOpaque())
         if status == noErr {
@@ -262,8 +276,14 @@ final class CameraPassthroughProbe {
         let sink = CameraSinkClient()
         try sink.connect()
         let capture = CameraCaptureService()
+        let normalizer = FrameNormalizer()
         capture.onFrame = { sampleBuffer in
-            sink.pushSampleBuffer(sampleBuffer)
+            // The camera's delivery format can change mid-stream when another
+            // process shares it (measured: Meet attaching dropped us from
+            // 1080p to 720p) — normalize every frame before pushing.
+            guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer),
+                  let normalized = normalizer.normalize(pixelBuffer) else { return }
+            sink.pushPixelBuffer(normalized)
         }
         try capture.start()
         try await Task.sleep(for: .seconds(seconds))

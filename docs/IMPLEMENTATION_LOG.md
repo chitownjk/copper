@@ -259,9 +259,26 @@ is indistinguishable from a user denial.
 
 67 package tests still pass (1 skipped: the gated model-download test).
 
+**Camera arbitration will change your capture format mid-stream.** Measured
+live: with a passthrough running at 1920×1080, Chrome/Meet attaching to the
+same physical camera renegotiated it to 1280×720 — our dimension guard then
+dropped every frame (captured 9025 / pushed 3438 / dropped 5587 over 300 s)
+and the virtual camera fell back to the test card. The extension behaved
+exactly as designed; the bug was assuming a fixed capture format. Fixed with
+`FrameNormalizer` in CompanionVideoCore (CoreImage aspect-fill scale to
+1080p, pass-through when dimensions already match; sink client now takes
+pixel buffers stamped with its own format description). Re-measured after
+the fix: **captured 9042 / pushed 9042 / dropped 0 over 300 s**, extension
+consumed all 9042. A second client freezing on its last-received frame
+during camera re-negotiation (Meet showed a stale test-card frame with a
+stopped counter) is client-side display behavior, not a stream fault —
+toggling the camera in that app re-attaches it.
+
 Known UX debts noted for E3.2/E3.4 (deliberately deferred): the Settings
 window's tab picker is a two-click dropdown (should be one-click tabs) and
-there is no Video settings section yet.
+there is no Video settings section yet. The passthrough probe is a dev
+affordance only — the product behavior (E5.2 proper) is a persistent "go
+live" feed with the standby card (E5.5) when idle.
 
 ## Open work
 
