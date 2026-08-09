@@ -269,7 +269,12 @@ exactly as designed; the bug was assuming a fixed capture format. Fixed with
 1080p, pass-through when dimensions already match; sink client now takes
 pixel buffers stamped with its own format description). Re-measured after
 the fix: **captured 9042 / pushed 9042 / dropped 0 over 300 s**, extension
-consumed all 9042. A second client freezing on its last-received frame
+consumed all 9042. **Human-verified end to end** (project owner, August
+2026): real camera visible through "Meeting Companion Camera" in Photo
+Booth and Google Meet; the green camera-in-use indicator appears; macOS
+system video effects (backgrounds, reactions) compose on top of our
+stream like on any first-class camera. E5.1 is done; the E5.2 capture
+tracer is done. A second client freezing on its last-received frame
 during camera re-negotiation (Meet showed a stale test-card frame with a
 stopped counter) is client-side display behavior, not a stream fault —
 toggling the camera in that app re-attaches it.

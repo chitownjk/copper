@@ -33,32 +33,29 @@ and SpeechAnalyzer run for real; don't stub them.
 
 ## Your job
 
-### First: check whether the sink relay got its eyeball check
+### Where the video pillar stands: E5.1 done, E5.2 tracer done
 
-The E5.1 **sink stream is built and transport-proven** (300/300 frames across
-the process boundary, extension log accounting exact — see the log). What no
-headless check can prove is the rendered relay: camera TCC is auto-denied for
-CLI processes. If the user is around, ask them to run
-
-    /Applications/MeetingNotes.app/Contents/MacOS/MeetingNotes --push-camera-frames=30
-
-and watch "Meeting Companion Camera" in Photo Booth: indigo "LIVE FROM
-MEETING COMPANION APP" pattern while pushing, SMPTE test card returning ~1 s
-after it stops. Extension logs the "relaying app frames" / "serving test
-card" transitions. That closes E5.1's transport step.
+**Human-verified end to end (August 2026):** real camera → app capture →
+sink → extension → "Meeting Companion Camera" rendering in Photo Booth and
+Google Meet, green camera indicator on, macOS system video effects
+composing on top. Frame accounting exact (9042/9042/0 over 300 s). The
+probes (`--push-camera-frames`, `--camera-passthrough`) are dev
+affordances; the next E5.2 work is the persistent feed: a "go live"
+control that keeps the sink fed while enabled, in-app preview panel,
+device picker (incl. Continuity Camera), latency measurement (PRD ≤5 ms
+added). Then segmentation (E5.3).
 
 **Before any extension replace:** read the launchd-race note in the log
 (hard-won fact #1 under the sink-stream section). If the camera vanishes
 after a replace, `launchctl print system | grep CMIOExtension` is the tell;
 bump `CFBundleVersion` and replace again.
 
-The **E5.2 first slice is also built**: `CompanionVideoCore` (new MeetingKit
-product) with `CameraCaptureService`, and `--camera-passthrough[=seconds]`
-chaining real camera → sink → virtual camera. Unverified for the same TCC
-reason; the log has the exact verification run. Next E5.2 work after the
-eyeball checks pass: in-app live preview panel, device picker (incl.
-Continuity Camera), latency measurement (PRD wants ≤5 ms added), then
-segmentation (E5.3). The dumb-extension rule (CLAUDE.md rule 2) still holds.
+Two live-debugging lessons beyond the launchd race (details in the log):
+a hardened-runtime app without `com.apple.security.device.camera` gets NO
+TCC prompt (silent denial), and macOS renegotiates a shared camera's
+format mid-stream (Meet attaching dropped capture to 720p —
+`FrameNormalizer` now absorbs that). The dumb-extension rule (CLAUDE.md
+rule 2) still holds.
 
 ### Whenever blocked
 
@@ -70,11 +67,10 @@ segmentation (E5.3). The dumb-extension rule (CLAUDE.md rule 2) still holds.
 
 ## User actions outstanding (nobody else can do these)
 
-1. Eyeball the sink relay in Photo Booth (see above — 60 seconds).
-2. E4.1: create a **Developer ID Application** cert (Account Holder at
+1. E4.1: create a **Developer ID Application** cert (Account Holder at
    developer.apple.com) + notarytool credentials. Dev-signing needed no
    Apple approval — the System Extension capability is self-service.
-3. Optional: reboot to flush the dead SplitmediaLabs virtcam uninstall and
+2. Optional: reboot to flush the dead SplitmediaLabs virtcam uninstall and
    the stack of superseded Meeting Companion extension versions (v1–v7 sit
    in "waiting to uninstall on reboot" / stale staging dirs).
 
