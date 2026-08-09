@@ -276,14 +276,19 @@ final class CameraPassthroughProbe {
         let sink = CameraSinkClient()
         try sink.connect()
         let capture = CameraCaptureService()
-        let normalizer = FrameNormalizer()
+        let composer = FrameComposer()
+        // Mirror the go-live pipeline exactly, logo included, so the probe
+        // is a faithful preview of the product path.
+        if let path = UserDefaults.standard.string(forKey: CompanionCameraController.logoDefaultsKey) {
+            composer.setLogo(url: URL(fileURLWithPath: path))
+        }
         capture.onFrame = { sampleBuffer in
             // The camera's delivery format can change mid-stream when another
             // process shares it (measured: Meet attaching dropped us from
             // 1080p to 720p) — normalize every frame before pushing.
             guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer),
-                  let normalized = normalizer.normalize(pixelBuffer) else { return }
-            sink.pushPixelBuffer(normalized)
+                  let composed = composer.compose(pixelBuffer) else { return }
+            sink.pushPixelBuffer(composed)
         }
         try capture.start()
         try await Task.sleep(for: .seconds(seconds))

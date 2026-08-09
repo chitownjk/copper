@@ -18,6 +18,8 @@ final class AppState {
     var recentMeetings: [MeetingRow] = []
     var lastError: String?
 
+    let camera = CompanionCameraController()
+
     private var observationTask: Task<Void, Never>?
     private let notesPanel = NotesPanelController()
     private let library = LibraryWindowController()

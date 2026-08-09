@@ -281,9 +281,39 @@ toggling the camera in that app re-attaches it.
 
 Known UX debts noted for E3.2/E3.4 (deliberately deferred): the Settings
 window's tab picker is a two-click dropdown (should be one-click tabs) and
-there is no Video settings section yet. The passthrough probe is a dev
-affordance only — the product behavior (E5.2 proper) is a persistent "go
-live" feed with the standby card (E5.5) when idle.
+there is no Video settings section yet.
+
+## E5.2 go-live + logo overlay first slice (August 2026)
+
+The timed probe gave way to the product path: `CompanionCameraController`
+owns a persistent real-camera → `FrameComposer` → sink feed, driven from a
+new Camera section in the menu bar — "Go Live (Virtual Camera)" / "Stop
+Virtual Camera" / "Add Camera Logo…". Off at every launch; the camera never
+starts without explicit user action.
+
+`FrameComposer` (CompanionVideoCore) replaces FrameNormalizer: one GPU
+render pass does 1080p aspect-fill normalization *and* the logo overlay
+(PNG with alpha, scaled to 10% of frame height, bottom-right, 48 px
+margin; drag-to-place is E5.4 proper). The logo is baked into outgoing
+frames in our process, so it persists regardless of downstream effects
+(macOS backgrounds/reactions, Meet filters) — that is the product
+requirement, confirmed by the owner. Logo path persists in UserDefaults
+(`videoLogoPath`); applies live mid-stream; stale paths are forgotten at
+launch. `--camera-passthrough` now runs the same composer (logo included)
+so the probe stays a faithful preview of the product path.
+
+Measured with a logo configured: **captured 596 / pushed 596 / dropped 0
+over 20 s** — the compositing pass sustains 30 fps with zero drops.
+
+Product decisions recorded (owner, August 2026): the macOS system video
+menu (green-indicator panel) is liked — fold equivalent controls into a
+Settings Video section during the settings cleanup (with one-click tabs);
+the logo must persist with or without filters/backgrounds — satisfied by
+compositing in-app, upstream of everything.
+
+Not yet human-verified: the menu-bar Go Live/Stop/logo-picker interactions
+(agent session cannot click menus; the underlying pipeline is the
+measured one above).
 
 ## Open work
 

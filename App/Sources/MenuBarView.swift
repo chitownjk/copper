@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import MeetingCore
+import UniformTypeIdentifiers
 
 struct MenuBarView: View {
     @Environment(AppState.self) private var appState
@@ -35,6 +36,10 @@ struct MenuBarView: View {
                     appState.status = .idle
                 }
             }
+
+            Divider()
+
+            cameraSection
 
             Divider()
 
@@ -96,6 +101,51 @@ struct MenuBarView: View {
                 NSApplication.shared.terminate(nil)
             }
             .keyboardShortcut("q")
+        }
+    }
+
+    /// Video companion controls (E5.2). "Go Live" feeds the virtual camera;
+    /// the logo is baked into our outgoing frames, so it persists regardless
+    /// of downstream filters/backgrounds (macOS effects, Meet, Zoom).
+    @ViewBuilder
+    private var cameraSection: some View {
+        switch appState.camera.state {
+        case .live:
+            Text("● Camera Live")
+            Button("Stop Virtual Camera") {
+                appState.camera.stopLive()
+            }
+        case .off:
+            Button("Go Live (Virtual Camera)") {
+                Task { await appState.camera.goLive() }
+            }
+        case .failed(let message):
+            Button("Go Live (Virtual Camera)") {
+                Task { await appState.camera.goLive() }
+            }
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.red)
+        }
+
+        if appState.camera.logoURL == nil {
+            Button("Add Camera Logo…") { chooseLogo() }
+        } else {
+            Menu("Camera Logo: \(appState.camera.logoURL?.lastPathComponent ?? "")") {
+                Button("Change Logo…") { chooseLogo() }
+                Button("Remove Logo") { appState.camera.setLogo(url: nil) }
+            }
+        }
+    }
+
+    private func chooseLogo() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.png, .tiff, .heic, .jpeg]
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a logo image (PNG with transparency works best)."
+        NSApp.activate(ignoringOtherApps: true)
+        if panel.runModal() == .OK, let url = panel.url {
+            appState.camera.setLogo(url: url)
         }
     }
 
