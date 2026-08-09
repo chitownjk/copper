@@ -332,6 +332,26 @@ drops. Not yet built from the TD-5 spec: temporal mask smoothing (expect
 edge flicker at hair/shoulders), quality-tier degrade ladder, image
 replacement, color wash.
 
+**Halo fix + strengths** (owner testing feedback, same session): the raw
+person mask is slightly generous, leaving a sharp background rim around
+hands/hair — now eroded inward (CIMorphologyMinimum r2.5 in mask space)
+and feathered (σ1.5) before blending. Blur strength picker: Light σ8 /
+Medium σ16 / Strong σ28. `--go-live` launch flag added (menu-bar icon can
+be crowded out by the system camera indicator while a camera app is
+frontmost).
+
+**Product direction from owner testing (August 2026), for the next epics:**
+1. **E3.2 becomes a real main window with a persistent dock icon** —
+   expanded library + sidebar with all settings, "consumer standard".
+2. **Settings gets a live Camera section** — live preview while adjusting;
+   multiple stored logos, logo placement, text overlays (E5.4); a
+   self-view vs. conference-view (mirrored vs. true) preview toggle.
+3. **Manual "Go Live" is interim** — expected end state: the feed starts
+   automatically when any app opens the virtual camera. Implementation
+   note: listen for `kCMIODevicePropertyDeviceIsRunningSomewhere` on our
+   own device (the extension also logs source-stream start/stop). Keep the
+   explicit toggle as an override/privacy control.
+
 Owner-requested follow-ups, shipped same session: logo Size picker
 (Small 6% / Medium 10% / Large 16% of frame height) and a "Mirror Output"
 toggle (whole-frame horizontal flip in FrameComposer, off by default,
