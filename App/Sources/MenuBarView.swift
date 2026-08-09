@@ -68,6 +68,10 @@ struct MenuBarView: View {
                 NSWorkspace.shared.open(Paths.recordingsRoot)
             }
 
+            Button("Open Meeting Companion") {
+                appState.mainWindow.show()
+            }
+
             Button("Open Library") {
                 appState.openLibrary()
             }

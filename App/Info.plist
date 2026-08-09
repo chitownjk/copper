@@ -16,8 +16,6 @@
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
-    <key>LSUIElement</key>
-    <true/>
     <key>NSCameraUsageDescription</key>
     <string>MeetingNotes connects to its own virtual camera to send it video, and will capture your camera for video effects.</string>
     <key>NSMicrophoneUsageDescription</key>

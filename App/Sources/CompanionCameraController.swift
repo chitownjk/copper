@@ -44,6 +44,11 @@ final class CompanionCameraController {
     private var sink: CameraSinkClient?
     private let composer = FrameComposer()
 
+    /// Preview tee: receives every composed sample buffer that reached the
+    /// sink. Called on the capture queue — consumers must be thread-safe
+    /// (AVSampleBufferDisplayLayer's renderer is).
+    nonisolated(unsafe) var previewConsumer: ((CMSampleBuffer) -> Void)?
+
     nonisolated static let logoDefaultsKey = "videoLogoPath"
     nonisolated static let logoSizeDefaultsKey = "videoLogoSize"
     nonisolated static let mirrorDefaultsKey = "videoMirrorOutput"
@@ -89,10 +94,12 @@ final class CompanionCameraController {
             try sink.connect()
             let capture = CameraCaptureService()
             let composer = self.composer
-            capture.onFrame = { sampleBuffer in
+            capture.onFrame = { [weak self] sampleBuffer in
                 guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer),
                       let composed = composer.compose(pixelBuffer) else { return }
-                sink.pushPixelBuffer(composed)
+                if let pushed = sink.pushPixelBuffer(composed) {
+                    self?.previewConsumer?(pushed)
+                }
             }
             try capture.start(excludingUniqueID: CameraSinkClient.deviceUID)
             self.sink = sink

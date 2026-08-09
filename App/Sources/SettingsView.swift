@@ -41,7 +41,7 @@ struct SettingsView: View {
 
 // MARK: - General
 
-private struct GeneralSettingsTab: View {
+struct GeneralSettingsTab: View {
     @Bindable var model: SettingsModel
 
     var body: some View {
@@ -65,7 +65,7 @@ private struct GeneralSettingsTab: View {
 
 // MARK: - Transcription
 
-private struct TranscriptionSettingsTab: View {
+struct TranscriptionSettingsTab: View {
     @Bindable var model: SettingsModel
 
     var body: some View {
@@ -189,7 +189,7 @@ private struct ModelRow: View {
 
 // MARK: - Summarization
 
-private struct SummarizationSettingsTab: View {
+struct SummarizationSettingsTab: View {
     @Bindable var model: SettingsModel
     @State private var editorTarget: TemplateEditorTarget?
 
@@ -438,7 +438,7 @@ private struct ValidationLine: View {
 
 // MARK: - Storage & Privacy
 
-private struct StorageSettingsTab: View {
+struct StorageSettingsTab: View {
     @Bindable var model: SettingsModel
 
     var body: some View {

@@ -340,6 +340,28 @@ Medium σ16 / Strong σ28. `--go-live` launch flag added (menu-bar icon can
 be crowded out by the system camera indicator while a camera app is
 frontmost).
 
+## E3.2 first slice — main window shell (August 2026)
+
+Persistent dock icon (LSUIElement removed) + `MainWindowController` hosting
+`MainWindowView`: NavigationSplitView, sidebar = Library ("App" group) and
+Settings group (Camera, General, Transcription, Summaries, Storage — the
+existing tab views de-privatized and reused, now one click each). The
+Camera pane is new: live preview (AVSampleBufferDisplayLayer fed by a
+preview tee off the sink push — you see exactly the composed frames the
+extension serves), self-view vs. what-others-see toggle (display-only
+mirror), Go Live/Stop, and all video controls. Window opens on launch and
+from the dock icon (reopen is unconditional — MenuBarExtra status windows
+make `hasVisibleWindows` useless) and from the menu bar.
+
+Owner feedback incorporated live: Camera belongs in the Settings group,
+not "App". Known cleanups queued: retire the standalone Settings window
+(one place to change things — deep-links should target the main window),
+fold onboarding/"setup" into the same surface (E3.3), stale navigation
+title when switching sections over the nested Library split view.
+Launch-order gotcha: SwiftUI materializes AppState lazily, so the app
+delegate retries `onReopen` briefly instead of racing it at
+didFinishLaunching.
+
 **Product direction from owner testing (August 2026), for the next epics:**
 1. **E3.2 becomes a real main window with a persistent dock icon** —
    expanded library + sidebar with all settings, "consumer standard".

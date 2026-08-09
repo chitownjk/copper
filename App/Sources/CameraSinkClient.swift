@@ -115,21 +115,23 @@ final class CameraSinkClient {
 
     /// Wraps a pixel buffer in a sample buffer stamped with the sink's fixed
     /// 1080p format and enqueues it. Mismatched dimensions are dropped and
-    /// counted — normalize upstream (FrameNormalizer) before pushing.
+    /// counted — normalize upstream (FrameComposer) before pushing. Returns
+    /// the enqueued sample buffer (usable for an in-app preview tee), or nil
+    /// when the frame was dropped.
     @discardableResult
-    func pushPixelBuffer(_ pixelBuffer: CVPixelBuffer) -> Bool {
-        guard let queue else { return false }
+    func pushPixelBuffer(_ pixelBuffer: CVPixelBuffer) -> CMSampleBuffer? {
+        guard let queue else { return nil }
         guard CVPixelBufferGetWidth(pixelBuffer) == Video.width,
               CVPixelBufferGetHeight(pixelBuffer) == Video.height else {
             if framesDropped == 0 {
                 Self.logger.error("dropping frame: \(CVPixelBufferGetWidth(pixelBuffer))x\(CVPixelBufferGetHeight(pixelBuffer)) does not match \(Video.width)x\(Video.height)")
             }
             framesDropped &+= 1
-            return false
+            return nil
         }
         guard CMSimpleQueueGetCount(queue) < CMSimpleQueueGetCapacity(queue) else {
             framesDropped &+= 1
-            return false
+            return nil
         }
 
         var timing = CMSampleTimingInfo(
@@ -145,17 +147,17 @@ final class CameraSinkClient {
             sampleTiming: &timing,
             sampleBufferOut: &sampleBuffer
         )
-        guard let sampleBuffer else { return false }
+        guard let sampleBuffer else { return nil }
 
         let retained = Unmanaged.passRetained(sampleBuffer)
         let status = CMSimpleQueueEnqueue(queue, element: retained.toOpaque())
         if status == noErr {
             framesPushed &+= 1
-            return true
+            return sampleBuffer
         }
         retained.release()
         framesDropped &+= 1
-        return false
+        return nil
     }
 
     /// Draws one frame via `render` and enqueues it. Returns false when the

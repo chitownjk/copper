@@ -19,6 +19,7 @@ final class AppState {
     var lastError: String?
 
     let camera = CompanionCameraController()
+    @ObservationIgnored private(set) lazy var mainWindow = MainWindowController(appState: self)
 
     private var observationTask: Task<Void, Never>?
     private let notesPanel = NotesPanelController()
@@ -31,6 +32,7 @@ final class AppState {
     init() {
         // Must run before anything reads a preference.
         LegacyDefaultsMigration.runIfNeeded()
+        AppDelegate.onReopen = { [weak self] in self?.mainWindow.show() }
         startObservingMeetings()
         self.autoRecorder = AutoRecorder(appState: self)
         self.onboarding = OnboardingWindowController(appState: self)
