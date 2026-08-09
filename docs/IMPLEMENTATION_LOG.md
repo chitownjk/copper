@@ -239,20 +239,29 @@ into the sink unchanged (dimension-checked against the extension's fixed
 1080p format; mismatches are dropped and counted, never sent).
 
 `--camera-passthrough[=seconds]` chains the whole thing: real camera →
-capture → sink → extension → virtual camera. **Built and installed but
-unverified** — it requires the camera TCC grant, which only a GUI launch
-with a user present can produce. Verification run for a human:
+capture → sink → extension → virtual camera. **Verified live** (August 2026,
+user present): a 60 s run measured **captured 1824 / pushed 1824 / dropped
+0**, and the extension's own log matches 1:1 — `consumed sink frame 1 →
+1824`, `relaying app frames` at the switchover, `sink stopped after 1824
+frames`. The sink-pattern eyeball check also passed: Photo Booth and Google
+Meet both showed the indigo app pattern with a live counter (mirrored —
+that's each app's *self-view* behavior, remote participants see it
+unmirrored; Photo Booth also crops to fill its window).
 
-```
-open -W --stdout /tmp/passthrough.log -a /Applications/MeetingNotes.app --args --camera-passthrough=30
-```
-
-approve the camera prompt on first run, watch Photo Booth's "Meeting
-Companion Camera" show the *real* camera image for ~30 s, then check
-`/tmp/passthrough.log` — captured/pushed counts should be ≈30×seconds and
-drops ≈0. That, plus the pattern check above, closes both eyeball items.
+**One more hard-won TCC fact:** a hardened-runtime app without
+`com.apple.security.device.camera` doesn't get a *denied* camera prompt —
+tccd refuses to prompt at all ("Prompting policy for hardened runtime …
+requires entitlement … Policy disallows prompt") and `requestAccess`
+returns false as if the user had declined. The entitlement is now in
+`MeetingNotes.entitlements` next to audio-input. Diagnosed via
+`log show --predicate 'process == "tccd"'` — the AVFoundation-side error
+is indistinguishable from a user denial.
 
 67 package tests still pass (1 skipped: the gated model-download test).
+
+Known UX debts noted for E3.2/E3.4 (deliberately deferred): the Settings
+window's tab picker is a two-click dropdown (should be one-click tabs) and
+there is no Video settings section yet.
 
 ## Open work
 

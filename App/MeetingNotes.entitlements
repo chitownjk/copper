@@ -7,6 +7,10 @@
          existing user data (rename/migration is E3.5). -->
     <key>com.apple.security.device.audio-input</key>
     <true/>
+    <!-- Hardened runtime blocks the camera TCC prompt entirely without this
+         (tccd: "Policy disallows prompt"), measured Aug 2026. -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
     <!-- Restricted entitlement: requires an embedded provisioning profile
          (automatic signing mints one) or AMFI kills the app at launch. -->
     <key>com.apple.developer.system-extension.install</key>
