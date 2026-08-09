@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import MeetingCore
+import CompanionVideoCore
 import UniformTypeIdentifiers
 
 struct MenuBarView: View {
@@ -126,6 +127,14 @@ struct MenuBarView: View {
             Text(message)
                 .font(.caption)
                 .foregroundStyle(.red)
+        }
+
+        Picker("Background", selection: Binding(
+            get: { appState.camera.backgroundMode },
+            set: { appState.camera.setBackgroundMode($0) }
+        )) {
+            Text("None").tag(BackgroundMode.none)
+            Text("Blur").tag(BackgroundMode.blur)
         }
 
         if appState.camera.logoURL == nil {

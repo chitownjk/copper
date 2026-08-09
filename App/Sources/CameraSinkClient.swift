@@ -277,10 +277,14 @@ final class CameraPassthroughProbe {
         try sink.connect()
         let capture = CameraCaptureService()
         let composer = FrameComposer()
-        // Mirror the go-live pipeline exactly, logo included, so the probe
-        // is a faithful preview of the product path.
+        // Mirror the go-live pipeline exactly — logo and background mode —
+        // so the probe is a faithful preview of the product path.
         if let path = UserDefaults.standard.string(forKey: CompanionCameraController.logoDefaultsKey) {
             composer.setLogo(url: URL(fileURLWithPath: path))
+        }
+        if let raw = UserDefaults.standard.string(forKey: CompanionCameraController.backgroundDefaultsKey),
+           let mode = BackgroundMode(rawValue: raw) {
+            composer.setBackgroundMode(mode)
         }
         capture.onFrame = { sampleBuffer in
             // The camera's delivery format can change mid-stream when another

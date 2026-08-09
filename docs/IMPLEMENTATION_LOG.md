@@ -320,14 +320,27 @@ now takes `excludingUniqueID` (the virtual camera's fixed UID); the
 system default falls through to the first real camera and explicit
 capture of our own device is refused. Never capture yourself.
 
+**E5.3 first slice — background blur.** `FrameComposer` gained a
+`BackgroundMode` (None/Blur, menu picker, persisted):
+`VNGeneratePersonSegmentationRequest` (balanced tier, ANE) on the raw
+capture buffer, mask aspect-filled to frame geometry, `CIBlendWithMask`
+of sharp person over gaussian-blurred (σ16, edge-clamped) background —
+all in the same single render pass as normalization/logo/mirror. Any
+segmentation failure degrades to the unblurred frame; the feed never
+breaks. Measured: **575/575/0 over 20 s** with blur on — full rate, zero
+drops. Not yet built from the TD-5 spec: temporal mask smoothing (expect
+edge flicker at hair/shoulders), quality-tier degrade ladder, image
+replacement, color wash.
+
 Owner-requested follow-ups, shipped same session: logo Size picker
 (Small 6% / Medium 10% / Large 16% of frame height) and a "Mirror Output"
 toggle (whole-frame horizontal flip in FrameComposer, off by default,
 labeled "flips for viewers too"). On mirroring: meeting apps mirror only
 the local self-view — remote participants see our frames un-flipped; the
-reversed logo the owner saw was their own Meet self-tile. Verify claims
-about "what others see" from a second device before changing stream
-orientation.
+reversed logo the owner saw was their own Meet self-tile. **Confirmed by
+the owner from a second device**: remote view reads correctly with Mirror
+Output off. Verify claims about "what others see" from a second device
+before changing stream orientation.
 
 ## Open work
 

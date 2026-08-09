@@ -1,7 +1,15 @@
 import Foundation
 import CoreImage
 import CoreVideo
+import Vision
 import os.log
+
+/// Background treatment for the outgoing frames (E5.3). Image replacement
+/// and color wash arrive in later slices.
+public enum BackgroundMode: String, CaseIterable, Sendable {
+    case none
+    case blur
+}
 
 /// The app-side frame pipeline (TD-5, first real node): normalizes capture
 /// frames to the virtual camera's fixed 1080p BGRA format and composites the
@@ -27,8 +35,19 @@ public final class FrameComposer {
     private let stateLock = NSLock()
     private var logoImage: CIImage?
     private var mirrorOutput = false
+    private var backgroundMode: BackgroundMode = .none
+
+    // Used only on the capture queue (Vision runs synchronously per frame).
+    // Balanced tier per TD-5; the quality/perf degrade ladder comes later.
+    private let segmentationRequest: VNGeneratePersonSegmentationRequest = {
+        let request = VNGeneratePersonSegmentationRequest()
+        request.qualityLevel = .balanced
+        request.outputPixelFormat = kCVPixelFormatType_OneComponent8
+        return request
+    }()
 
     private var loggedScaleEngaged = false
+    private var loggedSegmentationFailure = false
 
     public init() {
         let poolAttributes: [String: Any] = [
@@ -76,16 +95,22 @@ public final class FrameComposer {
         Self.logger.info("mirror output \(enabled ? "on" : "off")")
     }
 
+    /// Selects the background treatment. Thread-safe; applies mid-stream.
+    public func setBackgroundMode(_ mode: BackgroundMode) {
+        stateLock.withLock { backgroundMode = mode }
+        Self.logger.info("background mode \(mode.rawValue, privacy: .public)")
+    }
+
     /// Returns a 1920×1080 BGRA buffer ready for the sink: the input itself
     /// when nothing needs doing, otherwise a rendered copy (scaled and/or
     /// logo-composited). nil if rendering fails.
     public func compose(_ input: CVPixelBuffer) -> CVPixelBuffer? {
-        let (logo, mirror) = stateLock.withLock { (logoImage, mirrorOutput) }
+        let (logo, mirror, background) = stateLock.withLock { (logoImage, mirrorOutput, backgroundMode) }
         let width = CVPixelBufferGetWidth(input)
         let height = CVPixelBufferGetHeight(input)
         let matches = width == Self.width && height == Self.height
             && CVPixelBufferGetPixelFormatType(input) == kCVPixelFormatType_32BGRA
-        if matches, logo == nil, !mirror {
+        if matches, logo == nil, !mirror, background == .none {
             return input
         }
 
@@ -95,13 +120,10 @@ public final class FrameComposer {
                 loggedScaleEngaged = true
                 Self.logger.info("scaling engaged: \(width)x\(height) → \(Self.width)x\(Self.height)")
             }
-            // Aspect-fill: cover 1080p fully, center-crop the overflow.
-            let scale = max(CGFloat(Self.width) / CGFloat(width), CGFloat(Self.height) / CGFloat(height))
-            let scaled = base.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-            base = scaled.transformed(by: CGAffineTransform(
-                translationX: -scaled.extent.origin.x - (scaled.extent.width - CGFloat(Self.width)) / 2,
-                y: -scaled.extent.origin.y - (scaled.extent.height - CGFloat(Self.height)) / 2
-            ))
+            base = aspectFill(base)
+        }
+        if background == .blur {
+            base = blurredBackground(base: base, input: input)
         }
         var composed = logo.map { $0.composited(over: base) } ?? base
         if mirror {
@@ -116,5 +138,43 @@ public final class FrameComposer {
                        bounds: CGRect(x: 0, y: 0, width: Self.width, height: Self.height),
                        colorSpace: CGColorSpaceCreateDeviceRGB())
         return output
+    }
+
+    /// Scales any image to cover the 1080p frame fully, center-cropped.
+    private func aspectFill(_ image: CIImage) -> CIImage {
+        let scale = max(CGFloat(Self.width) / image.extent.width, CGFloat(Self.height) / image.extent.height)
+        let scaled = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        return scaled.transformed(by: CGAffineTransform(
+            translationX: -scaled.extent.origin.x - (scaled.extent.width - CGFloat(Self.width)) / 2,
+            y: -scaled.extent.origin.y - (scaled.extent.height - CGFloat(Self.height)) / 2
+        ))
+    }
+
+    /// Person-segmented blur: the person stays sharp, everything else gets a
+    /// gaussian. Vision runs on the raw capture buffer (ANE, balanced tier);
+    /// the mask is aspect-filled with the same geometry as the base image.
+    /// Any failure degrades to the unblurred frame — never break the feed.
+    private func blurredBackground(base: CIImage, input: CVPixelBuffer) -> CIImage {
+        let handler = VNImageRequestHandler(cvPixelBuffer: input, options: [:])
+        do {
+            try handler.perform([segmentationRequest])
+            guard let maskBuffer = segmentationRequest.results?.first?.pixelBuffer else { return base }
+            let mask = aspectFill(CIImage(cvPixelBuffer: maskBuffer))
+            let frameRect = CGRect(x: 0, y: 0, width: Self.width, height: Self.height)
+            let blurred = base.clampedToExtent()
+                .applyingGaussianBlur(sigma: 16)
+                .cropped(to: frameRect)
+            guard let blend = CIFilter(name: "CIBlendWithMask") else { return base }
+            blend.setValue(base, forKey: kCIInputImageKey)
+            blend.setValue(blurred, forKey: kCIInputBackgroundImageKey)
+            blend.setValue(mask, forKey: kCIInputMaskImageKey)
+            return blend.outputImage ?? base
+        } catch {
+            if !loggedSegmentationFailure {
+                loggedSegmentationFailure = true
+                Self.logger.error("segmentation failed: \(error.localizedDescription, privacy: .public)")
+            }
+            return base
+        }
     }
 }

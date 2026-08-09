@@ -37,6 +37,7 @@ final class CompanionCameraController {
     private(set) var logoURL: URL?
     private(set) var logoSize: LogoSize = .medium
     private(set) var mirrorsOutput = false
+    private(set) var backgroundMode: BackgroundMode = .none
 
     private var capture: CameraCaptureService?
     private var sink: CameraSinkClient?
@@ -45,6 +46,7 @@ final class CompanionCameraController {
     nonisolated static let logoDefaultsKey = "videoLogoPath"
     nonisolated static let logoSizeDefaultsKey = "videoLogoSize"
     nonisolated static let mirrorDefaultsKey = "videoMirrorOutput"
+    nonisolated static let backgroundDefaultsKey = "videoBackgroundMode"
 
     init() {
         let defaults = UserDefaults.standard
@@ -53,6 +55,10 @@ final class CompanionCameraController {
         }
         mirrorsOutput = defaults.bool(forKey: Self.mirrorDefaultsKey)
         composer.setMirrorOutput(mirrorsOutput)
+        if let raw = defaults.string(forKey: Self.backgroundDefaultsKey), let mode = BackgroundMode(rawValue: raw) {
+            backgroundMode = mode
+            composer.setBackgroundMode(mode)
+        }
         if let path = defaults.string(forKey: Self.logoDefaultsKey) {
             let url = URL(fileURLWithPath: path)
             if composer.setLogo(url: url, heightFraction: logoSize.fraction) {
@@ -135,5 +141,11 @@ final class CompanionCameraController {
         mirrorsOutput = enabled
         UserDefaults.standard.set(enabled, forKey: Self.mirrorDefaultsKey)
         composer.setMirrorOutput(enabled)
+    }
+
+    func setBackgroundMode(_ mode: BackgroundMode) {
+        backgroundMode = mode
+        UserDefaults.standard.set(mode.rawValue, forKey: Self.backgroundDefaultsKey)
+        composer.setBackgroundMode(mode)
     }
 }
