@@ -58,7 +58,7 @@ final class CompanionCameraController {
                       let composed = composer.compose(pixelBuffer) else { return }
                 sink.pushPixelBuffer(composed)
             }
-            try capture.start()
+            try capture.start(excludingUniqueID: CameraSinkClient.deviceUID)
             self.sink = sink
             self.capture = capture
             state = .live

@@ -290,7 +290,7 @@ final class CameraPassthroughProbe {
                   let composed = composer.compose(pixelBuffer) else { return }
             sink.pushPixelBuffer(composed)
         }
-        try capture.start()
+        try capture.start(excludingUniqueID: CameraSinkClient.deviceUID)
         try await Task.sleep(for: .seconds(seconds))
         capture.stop()
         sink.disconnect()

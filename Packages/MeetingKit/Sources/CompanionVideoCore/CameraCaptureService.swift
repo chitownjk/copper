@@ -48,14 +48,28 @@ public final class CameraCaptureService: NSObject, AVCaptureVideoDataOutputSampl
 
     /// Starts capturing from `deviceUniqueID`, or the default camera when nil.
     /// 1080p BGRA to match the virtual camera's fixed stream format.
-    public func start(deviceUniqueID: String? = nil) throws {
+    ///
+    /// `excludingUniqueID` must be set to the app's own virtual camera when
+    /// feeding it: macOS may make the virtual camera the *system default*
+    /// (measured live — "Go Live" captured our own extension's test card and
+    /// fed it back to itself, a video feedback loop). Capture from it is
+    /// refused even when requested explicitly.
+    public func start(deviceUniqueID: String? = nil, excludingUniqueID: String? = nil) throws {
         let device: AVCaptureDevice?
         if let deviceUniqueID {
             device = AVCaptureDevice(uniqueID: deviceUniqueID)
+        } else if let systemDefault = AVCaptureDevice.default(for: .video),
+                  systemDefault.uniqueID != excludingUniqueID {
+            device = systemDefault
         } else {
-            device = AVCaptureDevice.default(for: .video)
+            let discovery = AVCaptureDevice.DiscoverySession(
+                deviceTypes: [.builtInWideAngleCamera, .continuityCamera, .external],
+                mediaType: .video,
+                position: .unspecified
+            )
+            device = discovery.devices.first { $0.uniqueID != excludingUniqueID }
         }
-        guard let device else { throw CaptureError.deviceNotFound }
+        guard let device, device.uniqueID != excludingUniqueID else { throw CaptureError.deviceNotFound }
 
         session.beginConfiguration()
         session.sessionPreset = .hd1920x1080
