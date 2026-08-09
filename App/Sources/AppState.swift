@@ -48,6 +48,17 @@ final class AppState {
         handleCameraExtensionFlags()
         handleCameraSinkPushFlag()
         handleCameraPassthroughFlag()
+        // `--go-live`: start the persistent virtual-camera feed at launch and
+        // keep running. Covers the case where the menu bar is too crowded to
+        // reach our icon while a camera app is frontmost.
+        if ProcessInfo.processInfo.arguments.contains("--go-live") {
+            Task { @MainActor in
+                await self.camera.goLive()
+                if case .failed(let message) = self.camera.state {
+                    print("go-live failed: \(message)")
+                }
+            }
+        }
         // Dev affordance: this is a menu-bar app with no dock icon, so there's
         // otherwise no way to open a window straight from a launch.
         if let flag = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--settings") }) {

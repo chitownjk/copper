@@ -137,6 +137,17 @@ struct MenuBarView: View {
             Text("Blur").tag(BackgroundMode.blur)
         }
 
+        if appState.camera.backgroundMode == .blur {
+            Picker("Blur Strength", selection: Binding(
+                get: { appState.camera.blurStrength },
+                set: { appState.camera.setBlurStrength($0) }
+            )) {
+                ForEach(BlurStrength.allCases, id: \.self) { strength in
+                    Text(strength.label).tag(strength)
+                }
+            }
+        }
+
         if appState.camera.logoURL == nil {
             Button("Add Camera Logo…") { chooseLogo() }
         } else {

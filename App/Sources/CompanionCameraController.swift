@@ -38,6 +38,7 @@ final class CompanionCameraController {
     private(set) var logoSize: LogoSize = .medium
     private(set) var mirrorsOutput = false
     private(set) var backgroundMode: BackgroundMode = .none
+    private(set) var blurStrength: BlurStrength = .medium
 
     private var capture: CameraCaptureService?
     private var sink: CameraSinkClient?
@@ -47,6 +48,7 @@ final class CompanionCameraController {
     nonisolated static let logoSizeDefaultsKey = "videoLogoSize"
     nonisolated static let mirrorDefaultsKey = "videoMirrorOutput"
     nonisolated static let backgroundDefaultsKey = "videoBackgroundMode"
+    nonisolated static let blurStrengthDefaultsKey = "videoBlurStrength"
 
     init() {
         let defaults = UserDefaults.standard
@@ -58,6 +60,10 @@ final class CompanionCameraController {
         if let raw = defaults.string(forKey: Self.backgroundDefaultsKey), let mode = BackgroundMode(rawValue: raw) {
             backgroundMode = mode
             composer.setBackgroundMode(mode)
+        }
+        if let raw = defaults.string(forKey: Self.blurStrengthDefaultsKey), let strength = BlurStrength(rawValue: raw) {
+            blurStrength = strength
+            composer.setBlurStrength(strength)
         }
         if let path = defaults.string(forKey: Self.logoDefaultsKey) {
             let url = URL(fileURLWithPath: path)
@@ -147,5 +153,11 @@ final class CompanionCameraController {
         backgroundMode = mode
         UserDefaults.standard.set(mode.rawValue, forKey: Self.backgroundDefaultsKey)
         composer.setBackgroundMode(mode)
+    }
+
+    func setBlurStrength(_ strength: BlurStrength) {
+        blurStrength = strength
+        UserDefaults.standard.set(strength.rawValue, forKey: Self.blurStrengthDefaultsKey)
+        composer.setBlurStrength(strength)
     }
 }

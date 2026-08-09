@@ -11,6 +11,22 @@ public enum BackgroundMode: String, CaseIterable, Sendable {
     case blur
 }
 
+public enum BlurStrength: String, CaseIterable, Sendable {
+    case light
+    case medium
+    case strong
+
+    public var sigma: Double {
+        switch self {
+        case .light: return 8
+        case .medium: return 16
+        case .strong: return 28
+        }
+    }
+
+    public var label: String { rawValue.capitalized }
+}
+
 /// The app-side frame pipeline (TD-5, first real node): normalizes capture
 /// frames to the virtual camera's fixed 1080p BGRA format and composites the
 /// optional logo overlay — in a single GPU render pass.
@@ -36,6 +52,7 @@ public final class FrameComposer {
     private var logoImage: CIImage?
     private var mirrorOutput = false
     private var backgroundMode: BackgroundMode = .none
+    private var blurStrength: BlurStrength = .medium
 
     // Used only on the capture queue (Vision runs synchronously per frame).
     // Balanced tier per TD-5; the quality/perf degrade ladder comes later.
@@ -101,11 +118,17 @@ public final class FrameComposer {
         Self.logger.info("background mode \(mode.rawValue, privacy: .public)")
     }
 
+    /// Selects the blur strength. Thread-safe; applies mid-stream.
+    public func setBlurStrength(_ strength: BlurStrength) {
+        stateLock.withLock { blurStrength = strength }
+        Self.logger.info("blur strength \(strength.rawValue, privacy: .public)")
+    }
+
     /// Returns a 1920×1080 BGRA buffer ready for the sink: the input itself
     /// when nothing needs doing, otherwise a rendered copy (scaled and/or
     /// logo-composited). nil if rendering fails.
     public func compose(_ input: CVPixelBuffer) -> CVPixelBuffer? {
-        let (logo, mirror, background) = stateLock.withLock { (logoImage, mirrorOutput, backgroundMode) }
+        let (logo, mirror, background, strength) = stateLock.withLock { (logoImage, mirrorOutput, backgroundMode, blurStrength) }
         let width = CVPixelBufferGetWidth(input)
         let height = CVPixelBufferGetHeight(input)
         let matches = width == Self.width && height == Self.height
@@ -123,7 +146,7 @@ public final class FrameComposer {
             base = aspectFill(base)
         }
         if background == .blur {
-            base = blurredBackground(base: base, input: input)
+            base = blurredBackground(base: base, input: input, sigma: strength.sigma)
         }
         var composed = logo.map { $0.composited(over: base) } ?? base
         if mirror {
@@ -154,20 +177,27 @@ public final class FrameComposer {
     /// gaussian. Vision runs on the raw capture buffer (ANE, balanced tier);
     /// the mask is aspect-filled with the same geometry as the base image.
     /// Any failure degrades to the unblurred frame — never break the feed.
-    private func blurredBackground(base: CIImage, input: CVPixelBuffer) -> CIImage {
+    private func blurredBackground(base: CIImage, input: CVPixelBuffer, sigma: Double) -> CIImage {
         let handler = VNImageRequestHandler(cvPixelBuffer: input, options: [:])
         do {
             try handler.perform([segmentationRequest])
             guard let maskBuffer = segmentationRequest.results?.first?.pixelBuffer else { return base }
-            let mask = aspectFill(CIImage(cvPixelBuffer: maskBuffer))
+            // The raw mask runs a little generous — a rim of background around
+            // hands/head stays sharp (owner-observed halo). Erode the person
+            // region inward a few mask-pixels, then feather the edge.
+            var mask = CIImage(cvPixelBuffer: maskBuffer)
+            let maskExtent = mask.extent
+            mask = mask.applyingFilter("CIMorphologyMinimum", parameters: [kCIInputRadiusKey: 2.5])
+            mask = mask.clampedToExtent().applyingGaussianBlur(sigma: 1.5).cropped(to: maskExtent)
+            let scaledMask = aspectFill(mask)
             let frameRect = CGRect(x: 0, y: 0, width: Self.width, height: Self.height)
             let blurred = base.clampedToExtent()
-                .applyingGaussianBlur(sigma: 16)
+                .applyingGaussianBlur(sigma: sigma)
                 .cropped(to: frameRect)
             guard let blend = CIFilter(name: "CIBlendWithMask") else { return base }
             blend.setValue(base, forKey: kCIInputImageKey)
             blend.setValue(blurred, forKey: kCIInputBackgroundImageKey)
-            blend.setValue(mask, forKey: kCIInputMaskImageKey)
+            blend.setValue(scaledMask, forKey: kCIInputMaskImageKey)
             return blend.outputImage ?? base
         } catch {
             if !loggedSegmentationFailure {
