@@ -56,7 +56,10 @@ actor Pipeline {
             language: TranscriptionSettings.language,
             progress: nil
         )
+        // Replace, don't append — Retry / recover can run over a meeting that
+        // already has partial segments from a previous attempt.
         try await Database.shared.write { db in
+            try db.execute(sql: "DELETE FROM segments WHERE meeting_id = ?", arguments: [meetingId])
             for seg in segments {
                 var row = SegmentRow(
                     id: nil,

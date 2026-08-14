@@ -8,7 +8,7 @@ struct MenuBarView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 6) {
             switch appState.status {
             case .idle:
                 Button("Start Recording") {

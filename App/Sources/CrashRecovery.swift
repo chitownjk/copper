@@ -3,7 +3,7 @@ import Foundation
 import GRDB
 import MeetingCore
 
-/// Finds recordings that never finished — `status = recording` rows left behind
+/// Finds recordings that never finished — in-progress rows left behind
 /// by a crash, force quit, or power loss — and offers to salvage them (E1.5).
 ///
 /// The audio writers flush as they go, so the partial WAVs on disk are usually
@@ -20,9 +20,14 @@ enum CrashRecovery {
     }
 
     static func findOrphans() async throws -> [Orphan] {
+        let stuck = [
+            MeetingStatus.recording.rawValue,
+            MeetingStatus.mixing.rawValue,
+            MeetingStatus.transcribing.rawValue
+        ]
         let rows = try await Database.shared.read { db in
             try MeetingRow
-                .filter(Column("status") == MeetingStatus.recording.rawValue)
+                .filter(stuck.contains(Column("status")))
                 .order(Column("started_at").desc)
                 .fetchAll(db)
         }
@@ -48,6 +53,18 @@ enum CrashRecovery {
             )
         }
         await Pipeline.shared.process(meetingId: id)
+    }
+
+    /// Re-runs the pipeline from whatever audio is already on disk. Used by
+    /// the meeting-detail Retry button — does not require a clean in-app Stop.
+    /// Failed / ready-with-no-transcript meetings are not launch-modal orphans;
+    /// they are retryable from the UI anytime.
+    static func retry(_ meeting: MeetingRow) async throws {
+        let bytes = RecordingArtifacts.audioBytes(in: URL(fileURLWithPath: meeting.audioDir))
+        guard bytes > 0 else {
+            throw RecoveryError.noAudio
+        }
+        try await recover(Orphan(meeting: meeting, audioBytes: bytes))
     }
 
     /// Deletes the row and its audio directory. Destructive and immediate —
@@ -90,6 +107,35 @@ extension CrashRecovery {
     }
 }
 
+enum RecoveryError: LocalizedError {
+    case noAudio
+
+    var errorDescription: String? {
+        switch self {
+        case .noAudio:
+            return "No audio files found for this meeting."
+        }
+    }
+}
+
+extension CrashRecovery {
+    /// Detail / library Retry visibility. Live in-app recordings are excluded
+    /// so we never process files that are still being written.
+    static func isRetryable(_ meeting: MeetingRow, hasTranscript: Bool, liveMeetingId: String?) -> Bool {
+        if meeting.id == liveMeetingId { return false }
+        guard RecordingArtifacts.isRecoverable(directory: URL(fileURLWithPath: meeting.audioDir)) else {
+            return false
+        }
+        if !hasTranscript { return true }
+        switch meeting.statusEnum {
+        case .failed, .recording, .mixing, .transcribing:
+            return true
+        case .summarizing, .ready:
+            return false
+        }
+    }
+}
+
 @MainActor
 enum CrashRecoveryPrompt {
     /// Runs once at launch, before the user starts anything new.
@@ -110,14 +156,24 @@ enum CrashRecoveryPrompt {
 
     private static func handle(_ orphan: CrashRecovery.Orphan) async {
         let alert = NSAlert()
-        alert.messageText = "“\(orphan.meeting.title)” didn’t finish recording"
+        let processing = orphan.meeting.statusEnum == .mixing
+            || orphan.meeting.statusEnum == .transcribing
+        alert.messageText = processing
+            ? "“\(orphan.meeting.title)” didn’t finish processing"
+            : "“\(orphan.meeting.title)” didn’t finish recording"
 
         if orphan.hasAudio {
-            alert.informativeText = """
-            The app quit while this meeting was still recording. \
-            \(orphan.sizeDescription) of audio was saved — it can still be \
-            transcribed and summarized.
-            """
+            alert.informativeText = processing
+                ? """
+                The app quit while this meeting was still being processed. \
+                \(orphan.sizeDescription) of audio is on disk and can still be \
+                transcribed and summarized.
+                """
+                : """
+                The app quit while this meeting was still recording. \
+                \(orphan.sizeDescription) of audio was saved — it can still be \
+                transcribed and summarized.
+                """
             alert.addButton(withTitle: "Recover")
             alert.addButton(withTitle: "Discard")
             alert.addButton(withTitle: "Decide Later")

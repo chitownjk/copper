@@ -12,6 +12,21 @@ final class CameraSinkClient {
     /// Must match `FixedID.device` in the extension.
     static let deviceUID = "6E7A3B2C-9F41-4C8A-B1D5-2A6C0E9F7D31"
 
+    /// True when any client (Photo Booth, Meet, Zoom, us) has the virtual
+    /// camera open — including the extension's test-card fallback when we
+    /// have not hit Go Live.
+    static func isVirtualCameraRunningSomewhere() -> Bool {
+        guard let device = findDevice(uid: deviceUID) else { return false }
+        var addr = address(kCMIODevicePropertyDeviceIsRunningSomewhere)
+        var running: UInt32 = 0
+        var used: UInt32 = 0
+        let size = UInt32(MemoryLayout<UInt32>.size)
+        let status = withUnsafeMutablePointer(to: &running) { ptr in
+            CMIOObjectGetPropertyData(device, &addr, 0, nil, size, &used, ptr)
+        }
+        return status == kCMIOHardwareNoError && running != 0
+    }
+
     private static let logger = Logger(subsystem: "com.strongrise.meetingcompanion", category: "camera-sink")
 
     enum SinkError: LocalizedError {

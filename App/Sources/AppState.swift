@@ -21,9 +21,14 @@ final class AppState {
     let camera = CompanionCameraController()
     @ObservationIgnored private(set) lazy var mainWindow = MainWindowController(appState: self)
 
+    /// True when any client has "Meeting Companion Camera" open, including
+    /// the extension's test-card fallback when we have not hit Go Live.
+    var virtualCameraClaimed = false
+
     private var observationTask: Task<Void, Never>?
     private let notesPanel = NotesPanelController()
-    private let library = LibraryWindowController()
+    @ObservationIgnored private lazy var library = LibraryWindowController(appState: self)
+    @ObservationIgnored private var statusItem: StatusItemController?
     let calendar = CalendarService()
     private(set) var autoRecorder: AutoRecorder!
     private var onboarding: OnboardingWindowController!
@@ -73,6 +78,7 @@ final class AppState {
         }
         showOnboardingIfFirstLaunch()
         subscribePipelineNotifications()
+        statusItem = StatusItemController(appState: self)
     }
 
     /// `--install-camera-extension` / `--uninstall-camera-extension`: headless

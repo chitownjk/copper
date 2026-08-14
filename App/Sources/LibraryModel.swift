@@ -19,6 +19,7 @@ final class LibraryModel {
     var isGeneratingSummaryAction = false
     /// Non-nil presents the copyable follow-up-email sheet.
     var emailDraft: String?
+    var isRetrying = false
 
     private var observationTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
@@ -79,6 +80,20 @@ final class LibraryModel {
             }
         } catch {
             print("Rename failed: \(error)")
+        }
+    }
+
+    func retry(_ meeting: MeetingRow) {
+        guard !isRetrying else { return }
+        isRetrying = true
+        Task { [weak self] in
+            defer { self?.isRetrying = false }
+            do {
+                ToastPresenter.shared.show(.info, title: "Retrying transcription", subtitle: meeting.title)
+                try await CrashRecovery.retry(meeting)
+            } catch {
+                ToastPresenter.shared.show(.error, title: "Retry failed", subtitle: error.localizedDescription)
+            }
         }
     }
 

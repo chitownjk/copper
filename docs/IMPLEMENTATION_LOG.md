@@ -384,6 +384,49 @@ the owner from a second device**: remote view reads correctly with Mirror
 Output off. Verify claims about "what others see" from a second device
 before changing stream orientation.
 
+## Menu-bar extra + Retry transcription (August 2026)
+
+Two owner-reported bugs, fixed in place without a redesign.
+
+### Vanishing menu extra
+
+**Root cause (read from the code, then the system behavior it hits):** the extra
+was a SwiftUI `MenuBarExtra` scene — the app's *only* Scene — whose
+`NSStatusItem` SwiftUI creates and can recreate when `menuBarSymbol` changes
+(waveform → `record.circle.fill` on Start). That item has no `autosaveName` and
+is first in line to be crowded off when macOS inserts the Control Center
+camera/mic privacy indicators and a frontmost meeting app (Zoom/Meet) eats the
+left side of the menu bar. The `--go-live` comment already named the crowding.
+The notes panel is a floating `NSPanel` and does not remove the extra; camera-
+extension activation does not tear the SwiftUI scene down. The extra becoming
+unreachable during the test-card path (virtual camera claimed, no Go Live) is
+the same crowding: the system indicator appears as soon as any client opens
+"Meeting Companion Camera".
+
+**Fix:** `StatusItemController` owns a real `NSStatusItem` created once, given
+an autosave name, never removed, `isVisible` reasserted while recording / the
+virtual camera is live or claimed / the app becomes active. Existing
+`MenuBarView` content is hosted in a popover. Stop Recording / Go Live / Stop
+camera are also on the main-window session banner, the dock menu, and the
+Meeting menu. Global safety net: Control-Option-Command-R stops a live
+recording even when Zoom/Meet is frontmost (the in-menu ⌘R is not global).
+No auto-go-live.
+
+### Retry transcription from existing audio
+
+Launch recovery still prompts only for in-progress rows (`recording` /
+`mixing` / `transcribing`) with Recover / Discard / Decide Later in that
+order — Discard is not easier to hit. Failed meetings and ready meetings
+with audio but no transcript are retryable anytime from the meeting detail
+(header **Retry**, and **Retry Transcription** on an empty transcript tab)
+and cheaply from the library row for failed/stuck statuses.
+
+Retry stamps `ended_at` if missing (same as crash recover) and calls
+`Pipeline.shared.process`, which already streams mix/transcribe from disk.
+`process` now replaces segments in one transaction after a successful
+transcribe so a retry cannot duplicate a partial transcript. Live in-app
+recordings are excluded so we never process files still being written.
+
 ## Open work
 
 ### Not started

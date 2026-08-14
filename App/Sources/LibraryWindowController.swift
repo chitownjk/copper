@@ -5,6 +5,11 @@ import SwiftUI
 final class LibraryWindowController {
     private var window: NSWindow?
     private let model = LibraryModel()
+    private let appState: AppState
+
+    init(appState: AppState) {
+        self.appState = appState
+    }
 
     func show() {
         if let window {
@@ -22,7 +27,7 @@ final class LibraryWindowController {
         window.title = "Meeting Notes Library"
         window.isReleasedWhenClosed = false
         window.center()
-        window.contentView = NSHostingView(rootView: LibraryView(model: model))
+        window.contentView = NSHostingView(rootView: LibraryView(model: model).environment(appState))
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         self.window = window

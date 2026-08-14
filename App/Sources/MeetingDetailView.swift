@@ -17,10 +17,19 @@ enum DetailTab: String, CaseIterable, Identifiable {
 struct MeetingDetailView: View {
     @Bindable var model: LibraryModel
     let meeting: MeetingRow
+    @Environment(AppState.self) private var appState
 
     @State private var tab: DetailTab = .summary
     @State private var titleDraft: String = ""
     @State private var titleEditing: Bool = false
+
+    private var canRetry: Bool {
+        CrashRecovery.isRetryable(
+            meeting,
+            hasTranscript: !model.detailSegments.isEmpty,
+            liveMeetingId: appState.currentSession?.meeting.id
+        )
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -75,6 +84,17 @@ struct MeetingDetailView: View {
             }
             .pickerStyle(.segmented)
             .frame(width: 280)
+
+            if canRetry {
+                Button("Retry") {
+                    model.retry(meeting)
+                }
+                .disabled(model.isRetrying)
+                if model.isRetrying {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
 
             Menu {
                 Button("Export as Markdown…") { exportMarkdown() }
@@ -192,7 +212,20 @@ struct MeetingDetailView: View {
     private var transcriptView: some View {
         ScrollView {
             if model.detailSegments.isEmpty {
-                placeholder("No transcript available.")
+                VStack(spacing: 12) {
+                    Text("No transcript available.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                    if canRetry {
+                        Button("Retry Transcription") {
+                            model.retry(meeting)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(model.isRetrying)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(40)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(model.detailSegments, id: \.id) { seg in

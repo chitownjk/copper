@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LibraryView: View {
     @Bindable var model: LibraryModel
+    @Environment(AppState.self) private var appState
 
     var body: some View {
         NavigationSplitView {
@@ -48,10 +49,23 @@ struct LibraryView: View {
                 set: { model.selectMeeting($0) }
             )) {
                 ForEach(model.visibleMeetings) { meeting in
-                    MeetingRowView(meeting: meeting).tag(meeting.id as String?)
+                    MeetingRowView(
+                        meeting: meeting,
+                        onRetry: showsRowRetry(meeting) ? { model.retry(meeting) } : nil
+                    ).tag(meeting.id as String?)
                 }
             }
             .listStyle(.sidebar)
+        }
+    }
+
+    private func showsRowRetry(_ meeting: MeetingRow) -> Bool {
+        if meeting.id == appState.currentSession?.meeting.id { return false }
+        switch meeting.statusEnum {
+        case .failed, .recording, .mixing, .transcribing:
+            return true
+        default:
+            return false
         }
     }
 
@@ -75,20 +89,29 @@ struct LibraryView: View {
 
 private struct MeetingRowView: View {
     let meeting: MeetingRow
+    var onRetry: (() -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(meeting.title)
-                .font(.system(size: 13, weight: .medium))
-                .lineLimit(1)
-            HStack(spacing: 6) {
-                Text(formatDate(meeting.startedAt))
-                Text("·")
-                Text(statusLabel(meeting.statusEnum))
-                    .foregroundStyle(statusColor(meeting.statusEnum))
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(meeting.title)
+                    .font(.system(size: 13, weight: .medium))
+                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(formatDate(meeting.startedAt))
+                    Text("·")
+                    Text(statusLabel(meeting.statusEnum))
+                        .foregroundStyle(statusColor(meeting.statusEnum))
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            if let onRetry {
+                Button("Retry") { onRetry() }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+            }
         }
         .padding(.vertical, 2)
     }

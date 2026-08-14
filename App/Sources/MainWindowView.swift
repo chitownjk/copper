@@ -48,37 +48,80 @@ struct MainWindowView: View {
     @State private var settingsModel = SettingsModel()
 
     var body: some View {
-        NavigationSplitView {
-            List(selection: $section) {
-                Section("App") {
-                    sidebarRow(.library)
+        VStack(spacing: 0) {
+            sessionBanner
+            NavigationSplitView {
+                List(selection: $section) {
+                    Section("App") {
+                        sidebarRow(.library)
+                    }
+                    Section("Settings") {
+                        sidebarRow(.camera)
+                        sidebarRow(.general)
+                        sidebarRow(.transcription)
+                        sidebarRow(.summaries)
+                        sidebarRow(.storage)
+                    }
                 }
-                Section("Settings") {
-                    sidebarRow(.camera)
-                    sidebarRow(.general)
-                    sidebarRow(.transcription)
-                    sidebarRow(.summaries)
-                    sidebarRow(.storage)
+                .navigationSplitViewColumnWidth(min: 180, ideal: 200)
+            } detail: {
+                switch section {
+                case .library:
+                    LibraryView(model: libraryModel)
+                case .camera:
+                    CameraPaneView()
+                case .general:
+                    GeneralSettingsTab(model: settingsModel)
+                case .transcription:
+                    TranscriptionSettingsTab(model: settingsModel)
+                case .summaries:
+                    SummarizationSettingsTab(model: settingsModel)
+                case .storage:
+                    StorageSettingsTab(model: settingsModel)
                 }
-            }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-        } detail: {
-            switch section {
-            case .library:
-                LibraryView(model: libraryModel)
-            case .camera:
-                CameraPaneView()
-            case .general:
-                GeneralSettingsTab(model: settingsModel)
-            case .transcription:
-                TranscriptionSettingsTab(model: settingsModel)
-            case .summaries:
-                SummarizationSettingsTab(model: settingsModel)
-            case .storage:
-                StorageSettingsTab(model: settingsModel)
             }
         }
         .frame(minWidth: 900, minHeight: 560)
+    }
+
+    /// Reachable from the main window / dock even if the extra is gone —
+    /// including the test-card path, when Zoom/Meet has claimed the virtual
+    /// camera without a Go Live.
+    @ViewBuilder
+    private var sessionBanner: some View {
+        let recording = appState.status == .recording
+        let live = appState.camera.isLive
+        let claimed = appState.virtualCameraClaimed && !live
+        if recording || live || claimed {
+            HStack(spacing: 12) {
+                if recording {
+                    Text("● Recording")
+                        .foregroundStyle(.red)
+                    Button("Stop Recording") {
+                        Task { await appState.stopRecording() }
+                    }
+                }
+                if live {
+                    Text("● Camera Live")
+                    Button("Stop Virtual Camera") {
+                        appState.camera.stopLive()
+                    }
+                } else {
+                    if claimed {
+                        Text("Virtual camera in use (test card)")
+                            .foregroundStyle(.secondary)
+                    }
+                    Button("Go Live") {
+                        Task { await appState.camera.goLive() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.bar)
+        }
     }
 
     private func sidebarRow(_ section: MainSection) -> some View {
