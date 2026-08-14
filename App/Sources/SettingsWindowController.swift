@@ -2,13 +2,14 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class SettingsWindowController {
+final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private var session: SettingsSession?
     private let appState: AppState
 
     init(appState: AppState) {
         self.appState = appState
+        super.init()
     }
 
     func show(tab: SettingsTab = .general) {
@@ -16,6 +17,9 @@ final class SettingsWindowController {
             session.tab = tab
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+            if tab == .camera {
+                Task { await appState.camera.goLive() }
+            }
             return
         }
 
@@ -34,8 +38,17 @@ final class SettingsWindowController {
         window.contentView = NSHostingView(
             rootView: SettingsView(session: session).environment(appState)
         )
+        window.delegate = self
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         self.window = window
+    }
+
+    /// Hidden windows keep their hosting view, so SwiftUI onDisappear is
+    /// not reliable here. Stop the settings-started feed on close.
+    func windowWillClose(_ notification: Notification) {
+        if session?.tab == .camera {
+            appState.camera.stopLive()
+        }
     }
 }

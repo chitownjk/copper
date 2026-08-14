@@ -128,14 +128,24 @@ struct CameraPaneView: View {
 
                 LabeledContent("Logo") {
                     HStack {
-                        if let url = appState.camera.logoURL {
-                            Text(url.lastPathComponent)
-                                .foregroundStyle(.secondary)
-                            Button("Change…") { chooseLogo() }
-                            Button("Remove") { appState.camera.setLogo(url: nil) }
-                        } else {
-                            Button("Add Logo…") { chooseLogo() }
+                        Picker("Saved logo", selection: Binding(
+                            get: { appState.camera.selectedLogoID ?? "" },
+                            set: { appState.camera.selectLogo(id: $0.isEmpty ? nil : $0) }
+                        )) {
+                            Text("None").tag("")
+                            ForEach(appState.camera.savedLogos) { logo in
+                                Text(logo.displayName).tag(logo.id)
+                            }
                         }
+                        .labelsHidden()
+                        .frame(maxWidth: 220)
+                        Button("Add…") { chooseLogo() }
+                        Button("Remove") {
+                            if let id = appState.camera.selectedLogoID {
+                                appState.camera.removeLogo(id: id)
+                            }
+                        }
+                        .disabled(appState.camera.selectedLogoID == nil)
                     }
                 }
 
@@ -168,7 +178,7 @@ struct CameraPaneView: View {
         panel.allowsMultipleSelection = false
         panel.message = "Choose a logo image (PNG with transparency works best)."
         if panel.runModal() == .OK, let url = panel.url {
-            appState.camera.setLogo(url: url)
+            appState.camera.addLogo(from: url)
         }
     }
 }
@@ -192,8 +202,9 @@ private struct CameraPreviewView: NSViewRepresentable {
     func updateNSView(_ view: PreviewNSView, context: Context) {}
 
     static func dismantleNSView(_ view: PreviewNSView, coordinator: ()) {
-        // The tee outlives the pane on purpose: leaving Camera settings
-        // must not stop the sink, or Meet/Zoom fall back to the test card.
+        // Leaving Camera settings now stops goLive (test card may return
+        // if a meeting client still holds the virtual camera). The tee
+        // is cleared with stopLive; nothing to do here.
     }
 
     final class PreviewNSView: NSView {

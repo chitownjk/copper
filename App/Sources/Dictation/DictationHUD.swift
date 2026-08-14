@@ -4,6 +4,8 @@ import SwiftUI
 enum DictationHUDPhase: Equatable {
     case listening(handsFree: Bool)
     case transcribing
+    case inserted(String)
+    case copied(String)
     case blocked(String)
 }
 
@@ -126,6 +128,8 @@ struct DictationHUDView: View {
         switch phase {
         case .listening: return "mic.fill"
         case .transcribing: return "text.badge.waveform"
+        case .inserted: return "checkmark.circle.fill"
+        case .copied: return "doc.on.clipboard"
         case .blocked: return "exclamationmark.triangle.fill"
         }
     }
@@ -134,6 +138,8 @@ struct DictationHUDView: View {
         switch phase {
         case .listening: return Brand.accent
         case .transcribing: return Brand.accent
+        case .inserted: return .green
+        case .copied: return .orange
         case .blocked: return .orange
         }
     }
@@ -144,6 +150,10 @@ struct DictationHUDView: View {
             return "Listening"
         case .transcribing:
             return "Transcribing"
+        case .inserted:
+            return "Inserted"
+        case .copied:
+            return "Copied — press ⌘V"
         case .blocked:
             return "Can’t dictate"
         }
@@ -157,6 +167,10 @@ struct DictationHUDView: View {
                 : "Release to paste · Esc cancels"
         case .transcribing:
             return "On this Mac — not sent anywhere"
+        case .inserted(let method):
+            return method
+        case .copied(let method):
+            return method
         case .blocked(let message):
             return message
         }

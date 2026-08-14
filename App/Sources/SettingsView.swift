@@ -3,8 +3,8 @@ import MeetingProviders
 import SwiftUI
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case camera
     case general
+    case camera
     case transcription
     case summaries
     case storage
@@ -14,8 +14,8 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     /// Short label for the always-visible preference toolbar.
     var toolbarLabel: String {
         switch self {
-        case .camera: return "Camera"
         case .general: return "General"
+        case .camera: return "Camera"
         case .transcription: return "Transcription"
         case .summaries: return "Summaries"
         case .storage: return "Storage"
@@ -32,8 +32,8 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .camera: return "video"
         case .general: return "gearshape"
+        case .camera: return "video"
         case .transcription: return "waveform"
         case .summaries: return "text.alignleft"
         case .storage: return "lock.shield"
@@ -65,16 +65,22 @@ struct SettingsView: View {
         .tint(Brand.accent)
         .task { await model.load() }
         .onAppear { startCameraIfNeeded() }
-        .onChange(of: session.tab) { _, _ in startCameraIfNeeded() }
+        .onChange(of: session.tab) { oldTab, newTab in
+            if newTab == .camera {
+                Task { await appState.camera.goLive() }
+            } else if oldTab == .camera {
+                appState.camera.stopLive()
+            }
+        }
     }
 
     @ViewBuilder
     private var pane: some View {
         switch session.tab {
-        case .camera:
-            CameraPaneView()
         case .general:
             GeneralSettingsTab(model: model)
+        case .camera:
+            CameraPaneView()
         case .transcription:
             TranscriptionSettingsTab(model: model)
         case .summaries:

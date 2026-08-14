@@ -207,19 +207,39 @@ public struct LocalServerProvider: SummaryProvider {
     public nonisolated var privacyLabel: SummaryPrivacyLabel { .sentToLocalServer }
 
     public func requirement() async -> SummaryProviderRequirement {
-        resolvedURL() == nil ? .serverURL : .none
+        guard resolvedURL() != nil else { return .serverURL }
+        if Self.hasSuccessfulProbeForCurrentConfig {
+            return .none
+        }
+        if let message = Self.lastFailedProbeMessage, Self.lastProbeMatchesCurrentConfig {
+            return .unavailable(message)
+        }
+        return .unavailable("Not verified — test the connection.")
     }
 
     public func validateConfiguration() async throws {
         guard let url = resolvedURL() else {
+            Self.recordProbe(success: false, message: "Needs a server URL.")
             throw SummaryProviderError.notConfigured(.localServer)
         }
-        let available = try await client(url).listModels()
-        let wanted = Self.modelName
-        guard available.isEmpty || available.contains(where: { $0 == wanted || $0.hasPrefix(wanted + ":") }) else {
-            throw SummaryProviderError.unavailable(
-                "The server is reachable but doesn’t have “\(wanted)”. It offers: \(available.prefix(8).joined(separator: ", "))."
-            )
+        do {
+            let available = try await client(url).listModels()
+            let wanted = Self.modelName
+            guard available.isEmpty || available.contains(where: { $0 == wanted || $0.hasPrefix(wanted + ":") }) else {
+                let message = "The server is reachable but doesn’t have “\(wanted)”. It offers: \(available.prefix(8).joined(separator: ", "))."
+                Self.recordProbe(success: false, message: message)
+                throw SummaryProviderError.unavailable(message)
+            }
+            Self.recordProbe(success: true, message: nil)
+        } catch let error as SummaryProviderError {
+            if case .unavailable = error {
+                throw error
+            }
+            Self.recordProbe(success: false, message: error.localizedDescription)
+            throw error
+        } catch {
+            Self.recordProbe(success: false, message: error.localizedDescription)
+            throw error
         }
     }
 
@@ -244,6 +264,53 @@ public struct LocalServerProvider: SummaryProvider {
             model: model,
             templateID: request.template.id
         )
+    }
+
+    // MARK: Probe persistence
+    //
+    // A non-empty default URL used to report Ready even when Ollama was
+    // never installed. Ready now means the last Test Connection succeeded
+    // for this URL + model.
+
+    private static let probeURLKey = "localServerLastProbeURL"
+    private static let probeModelKey = "localServerLastProbeModel"
+    private static let probeOKKey = "localServerLastProbeOK"
+    private static let probeErrorKey = "localServerLastProbeError"
+
+    public static var hasSuccessfulProbeForCurrentConfig: Bool {
+        UserDefaults.standard.bool(forKey: probeOKKey)
+            && lastProbeMatchesCurrentConfig
+    }
+
+    public static var lastProbeMatchesCurrentConfig: Bool {
+        UserDefaults.standard.string(forKey: probeURLKey) == baseURLString
+            && UserDefaults.standard.string(forKey: probeModelKey) == modelName
+    }
+
+    public static var lastFailedProbeMessage: String? {
+        UserDefaults.standard.string(forKey: probeErrorKey)
+    }
+
+    public static func recordProbe(success: Bool, message: String?) {
+        let defaults = UserDefaults.standard
+        defaults.set(baseURLString, forKey: probeURLKey)
+        defaults.set(modelName, forKey: probeModelKey)
+        defaults.set(success, forKey: probeOKKey)
+        if success {
+            defaults.removeObject(forKey: probeErrorKey)
+        } else if let message, !message.isEmpty {
+            defaults.set(message, forKey: probeErrorKey)
+        } else {
+            defaults.removeObject(forKey: probeErrorKey)
+        }
+    }
+
+    public static func clearProbe() {
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: probeURLKey)
+        defaults.removeObject(forKey: probeModelKey)
+        defaults.removeObject(forKey: probeOKKey)
+        defaults.removeObject(forKey: probeErrorKey)
     }
 
     private func resolvedURL() -> URL? {

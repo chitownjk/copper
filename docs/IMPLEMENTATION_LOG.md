@@ -27,6 +27,19 @@ string) were never keyed by bundle ID.
 
 ---
 
+## Six Jay-test bugs (14 Aug 2026 evening)
+
+Smallest fixes on `main` after the dictation spike. Brand chrome untouched. OpenAI / Anthropic BYOK `requirement()` still keys off a stored key — only the local OpenAI-compatible server now requires a successful Test Connection before it says Ready.
+
+1. Logo library (copy into Application Support, picker + Add + Remove).
+2. Settings toolbar: General first; default tab already General.
+3. Auto-record radio: stored `@Observable` property so the selection redraws.
+4. Local server Ready = last successful probe for this URL+model.
+5. Leaving Camera settings (other tab or window close) calls `stopLive`.
+6. Dictation insert: AX value splice + Command-V posted to the frontmost app pid; HUD shows the method. Mail/Gmail not human-verified.
+
+See [PIVOT_DICTATION.md](PIVOT_DICTATION.md) for the insert path.
+
 ## Dictation spike (14 Aug 2026)
 
 Local-first Wispr *gesture* on top of the existing on-device engines. Isolated

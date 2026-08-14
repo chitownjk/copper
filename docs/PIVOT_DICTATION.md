@@ -2,7 +2,7 @@
 
 **Date:** 14 August 2026 (ET)  
 **Checkout:** spike on `main` after `381ab09` (brand + library-first chrome).  
-**Status:** code-complete and Debug-compiled. Not human-verified in Mail / Notes / TextEdit from this session (no Accessibility grant in the agent).
+**Status:** insert path revised 14 Aug evening (pid-targeted paste). Still not human-verified in Mail / Gmail from this session.
 
 Camera feature work stays parked. Brand chrome already shipped — do not reopen it. Dictation is the wedge.
 
@@ -28,14 +28,21 @@ Partials are never streamed. Capture writes a temp file with the existing `MicRe
 
 The existing Control-Option-Command-R stop-recording hotkey is untouched: Command is on that chord, so it is not a talk chord.
 
-## Insert
+## Insert (14 Aug evening — Mail / Gmail path)
 
-1. Refuse Secure Keyboard Entry (`IsSecureEventInputEnabled`) and `AXSecureTextField`.
-2. Try `AXSelectedText` on the focused element (no clipboard).
-3. Fall back to clipboard + synthetic ⌘V, then restore the pasteboard.
-4. If both fail, leave the text on the clipboard and toast *Copied — paste with ⌘V*.
+Jay's first spike: HUD appeared and transcribed, but nothing landed in Mail.app or Gmail. The old path set `AXSelectedText` (Mail/Gmail usually refuse it) then posted Command-V via `CGEvent.post(tap: .cghidEventTap)` and claimed success if the event objects were created. Mail/Chrome often ignore a HID-tap that is not addressed to their process; we also restored the pasteboard after 0.45s, which can beat a slow paste.
 
-The HUD is a non-activating panel so we never steal key focus from Mail / Notes / TextEdit.
+New path (`DictationInserter`):
+
+1. Refuse Secure Keyboard Entry and `AXSecureTextField`.
+2. Resolve the **frontmost app that is not Companion**. The HUD stays a non-activating panel so Mail / the browser should remain frontmost.
+3. Try AX on that app's focused element: `AXSelectedText`, then splice into `AXValue` at `AXSelectedTextRange` (never replace a non-empty field without a range).
+4. Clipboard + Command-V posted with `CGEvent.postToPid` to that app, using a private event source (so leftover Control-Option cannot rewrite the shortcut). Restore the previous pasteboard after 1s only if we posted.
+5. If we cannot find a target pid or cannot post, **leave the text on the clipboard** (do not restore) and show a loud HUD + toast: **Copied — press Command-V**.
+
+The HUD flashes the method: *Inserted via AX*, *Pasted*, or *Copied — press Command-V*. Console: `dictation insert: …`.
+
+**Do not treat Mail as verified.** The new path is the reason it *should* work (pid-targeted paste; AX value splice for native fields). This session did not dictate into Mail or Gmail.
 
 ## Isolation
 
@@ -60,15 +67,17 @@ A meeting recording and a dictation session cannot share the mic; dictation refu
 | Speech model not downloaded (Whisper selected, not installed) | Toast pointing at Settings → Transcription. We do not start a 600 MB download from a hotkey. |
 | Secure Keyboard Entry (Terminal menu, some password prompts) | Refused. |
 | Password / secure text field | Refused. |
-| Sandboxed or hostile apps (some App Store apps, games, a few terminals) | AX write and synthetic paste both fail. Text stays on the clipboard. |
+| Sandboxed or hostile apps (some App Store apps, games, a few terminals) | AX write and pid-targeted paste both fail. Text stays on the clipboard; HUD/toast say Copied — press Command-V. |
+| Mail.app / Gmail (browser) | Usually refuse AX. Intended path is Command-V posted to Mail/Chrome's pid. Not human-verified in this session. If the HUD says *Pasted* but the field is empty, press Command-V. |
+| Slack / some Electron apps | Often ignore synthetic keystrokes even with Accessibility. Expect clipboard-only. |
 | Event tap disabled by the system (lag) | Tap is re-enabled. If creation failed, we fall back to global/local `NSEvent` monitors (cannot swallow Esc). |
 | Fn on a keyboard that does not emit `maskSecondaryFn` | Use Control-Option. |
 
 ## How Jay verifies (this Mac, Apple Silicon)
 
-This session compiled Debug only. It did **not** dictate into Mail.
+This session compiled Debug only. It did **not** dictate into Mail or Gmail.
 
-1. Build and run the Debug app (or the `xcodebuild` product under `/tmp/mc-dictation-dd/Build/Products/Debug/MeetingNotes.app`).
+1. Build and run the Debug app (or the `xcodebuild` product under `/tmp/mc-sixbugs-dd/Build/Products/Debug/MeetingNotes.app`).
 2. Grant **Microphone** and **Accessibility** (System Settings → Privacy & Security). Accessibility is required for the global chord and for insert.
 3. Settings → Transcription: pick Apple (no download) or a downloaded Whisper model. Confirm the engine is ready.
 4. Click into Mail / Notes / TextEdit (not a password field).
@@ -77,12 +86,12 @@ This session compiled Debug only. It did **not** dictate into Mail.
 7. Confirm Esc cancels and pastes nothing.
 8. Optional: Fn-only on the built-in keyboard.
 
-If insert is silent, check the toast: Accessibility missing, secure field, or “Copied — paste with ⌘V”.
+Watch the HUD after Transcribing: *Inserted via AX*, *Pasted*, or *Copied — press Command-V*. If insert is silent, that last toast is the fallback.
 
 ## What this session could not test
 
 - Accessibility TCC / event tap on a real focused third-party field.
-- Paste into Mail, Notes, or TextEdit.
+- Paste into Mail, Gmail, Notes, TextEdit, or Slack.
 - Fn on hardware (agent has no keyboard).
 - Secure Keyboard Entry and password-field refusal on a live prompt.
 - Whisper vs SpeechAnalyzer quality on a spoken dictation (engines themselves were already verified on meeting audio).

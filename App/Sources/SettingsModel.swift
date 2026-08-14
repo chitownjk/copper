@@ -13,9 +13,12 @@ import Observation
 final class SettingsModel {
     // MARK: General
 
-    var autoRecordMode: AutoRecordMode {
-        get { AutoRecordSettings.current }
-        set { AutoRecordSettings.current = newValue }
+    /// Stored so @Observable publishes the radio change immediately.
+    /// A computed UserDefaults passthrough writes the value but never
+    /// invalidates the Picker, so the selected radio stayed stale until
+    /// the pane was rebuilt.
+    var autoRecordMode: AutoRecordMode = AutoRecordSettings.current {
+        didSet { AutoRecordSettings.current = autoRecordMode }
     }
 
     // MARK: Transcription
@@ -218,7 +221,9 @@ final class SettingsModel {
         switch providerID {
         case .anthropic: KeychainStore.remove(.anthropic)
         case .openAI: KeychainStore.remove(.openAI)
-        case .localServer: KeychainStore.remove(.localServer)
+        case .localServer:
+            KeychainStore.remove(.localServer)
+            LocalServerProvider.clearProbe()
         case .appleFoundationModels: break
         }
         validationResults[providerID] = nil

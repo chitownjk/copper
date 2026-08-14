@@ -180,11 +180,17 @@ final class DictationController {
                 return
             }
             switch DictationInserter.insert(text) {
-            case .inserted:
-                finishIdle()
+            case .insertedViaAX:
+                finishWithNote(.inserted("Inserted via AX"))
+            case .pasted:
+                finishWithNote(.inserted("Pasted"))
             case .copiedInstead:
-                finishIdle()
-                presentError("Copied — paste with ⌘V. This app blocked automatic insert.")
+                finishWithNote(.copied("Automatic insert failed. Press ⌘V."))
+                ToastPresenter.shared.show(
+                    .info,
+                    title: "Copied — press ⌘V",
+                    subtitle: "This app blocked automatic insert. The sentence is on the clipboard."
+                )
             case .blocked(let message):
                 failAndReset(message)
             }
@@ -231,6 +237,17 @@ final class DictationController {
     private func finishIdle() {
         phase = .idle
         hud.hide()
+    }
+
+    private func finishWithNote(_ phase: DictationHUDPhase) {
+        self.phase = .idle
+        hud.show(phase)
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(1600))
+            if self?.phase == .idle {
+                self?.hud.hide()
+            }
+        }
     }
 
     private static var isHeadlessLaunch: Bool {

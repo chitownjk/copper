@@ -35,6 +35,8 @@ final class CompanionCameraController {
 
     private(set) var state: State = .off
     private(set) var logoURL: URL?
+    private(set) var savedLogos: [SavedLogo] = []
+    private(set) var selectedLogoID: String?
     private(set) var logoSize: LogoSize = .medium
     private(set) var mirrorsOutput = false
     private(set) var backgroundMode: BackgroundMode = .none
@@ -70,14 +72,14 @@ final class CompanionCameraController {
             blurStrength = strength
             composer.setBlurStrength(strength)
         }
-        if let path = defaults.string(forKey: Self.logoDefaultsKey) {
-            let url = URL(fileURLWithPath: path)
-            if composer.setLogo(url: url, heightFraction: logoSize.fraction) {
-                logoURL = url
-            } else {
-                // Logo file moved or deleted since last run — forget it.
-                defaults.removeObject(forKey: Self.logoDefaultsKey)
-            }
+        savedLogos = LogoLibrary.load()
+        migrateLegacySingleLogoIfNeeded()
+        if let id = LogoLibrary.selectedID, let logo = savedLogos.first(where: { $0.id == id }) {
+            selectedLogoID = id
+            applyLogoFile(logo.url)
+        } else if let path = defaults.string(forKey: Self.logoDefaultsKey) {
+            // Library empty / nothing selected, but a legacy path still works.
+            applyLogoFile(URL(fileURLWithPath: path))
         }
     }
 
@@ -121,20 +123,85 @@ final class CompanionCameraController {
         state = .off
     }
 
-    /// Sets or clears the logo; persists across launches. Applies
-    /// immediately, including mid-stream.
+    /// Applies a logo file immediately (including mid-stream) and records
+    /// the path for the passthrough probe. Prefer `addLogo` / `selectLogo`
+    /// so the library keeps every upload.
     func setLogo(url: URL?) {
         if let url {
-            guard composer.setLogo(url: url, heightFraction: logoSize.fraction) else {
-                state = state == .live ? .live : .failed("Could not load logo image")
-                return
-            }
-            UserDefaults.standard.set(url.path, forKey: Self.logoDefaultsKey)
-            logoURL = url
+            applyLogoFile(url)
         } else {
-            composer.setLogo(url: nil)
-            UserDefaults.standard.removeObject(forKey: Self.logoDefaultsKey)
-            logoURL = nil
+            clearAppliedLogo()
+            selectedLogoID = nil
+            LogoLibrary.selectedID = nil
+        }
+    }
+
+    /// Copies `url` into Application Support, appends it to the library, and
+    /// selects it. Replacing is no longer destructive.
+    @discardableResult
+    func addLogo(from url: URL) -> SavedLogo? {
+        do {
+            let logo = try LogoLibrary.importLogo(from: url)
+            savedLogos.append(logo)
+            LogoLibrary.save(savedLogos)
+            selectLogo(id: logo.id)
+            return logo
+        } catch {
+            state = state == .live ? .live : .failed("Could not save logo: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    func selectLogo(id: String?) {
+        guard let id, let logo = savedLogos.first(where: { $0.id == id }) else {
+            setLogo(url: nil)
+            return
+        }
+        selectedLogoID = id
+        LogoLibrary.selectedID = id
+        applyLogoFile(logo.url)
+    }
+
+    func removeLogo(id: String) {
+        guard let index = savedLogos.firstIndex(where: { $0.id == id }) else { return }
+        let logo = savedLogos.remove(at: index)
+        LogoLibrary.deleteFile(logo)
+        LogoLibrary.save(savedLogos)
+        if selectedLogoID == id {
+            selectedLogoID = nil
+            LogoLibrary.selectedID = nil
+            clearAppliedLogo()
+        }
+    }
+
+    private func applyLogoFile(_ url: URL) {
+        guard composer.setLogo(url: url, heightFraction: logoSize.fraction) else {
+            state = state == .live ? .live : .failed("Could not load logo image")
+            return
+        }
+        UserDefaults.standard.set(url.path, forKey: Self.logoDefaultsKey)
+        logoURL = url
+    }
+
+    private func clearAppliedLogo() {
+        composer.setLogo(url: nil)
+        UserDefaults.standard.removeObject(forKey: Self.logoDefaultsKey)
+        logoURL = nil
+    }
+
+    /// One-time: the old single-path setting becomes the first library entry
+    /// so Jay's existing Islo logo is not stranded.
+    private func migrateLegacySingleLogoIfNeeded() {
+        let defaults = UserDefaults.standard
+        guard savedLogos.isEmpty,
+              let path = defaults.string(forKey: Self.logoDefaultsKey) else { return }
+        let url = URL(fileURLWithPath: path)
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        if let logo = try? LogoLibrary.importLogo(from: url, displayName: url.deletingPathExtension().lastPathComponent) {
+            savedLogos = [logo]
+            LogoLibrary.save(savedLogos)
+            selectedLogoID = logo.id
+            LogoLibrary.selectedID = logo.id
         }
     }
 
