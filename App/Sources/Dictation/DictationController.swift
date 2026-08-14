@@ -85,7 +85,7 @@ final class DictationController {
         }
         if !DictationPermissions.isAccessibilityTrusted() {
             DictationPermissions.promptAccessibility()
-            failAndReset("Grant Accessibility, then hold Control-Option to dictate.")
+            failAndReset("Grant Accessibility, then hold \(DictationHotkeySettings.current.displayName) to dictate.")
             return
         }
         switch DictationPermissions.microphoneStatus() {
@@ -98,7 +98,7 @@ final class DictationController {
             let granted = await DictationPermissions.requestMicrophone()
             hotkey.resetMachine()
             if granted {
-                presentError("Microphone is ready. Hold Control-Option to dictate.")
+                presentError("Microphone is ready. Hold \(DictationHotkeySettings.current.displayName) to dictate.")
             } else {
                 presentError("Microphone access is required to dictate.")
             }

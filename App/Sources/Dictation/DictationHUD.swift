@@ -1,4 +1,5 @@
 import AppKit
+import MeetingCore
 import SwiftUI
 
 enum DictationHUDPhase: Equatable {
@@ -162,8 +163,9 @@ struct DictationHUDView: View {
     private var subtitle: String {
         switch phase {
         case .listening(let handsFree):
+            let chord = DictationHotkeySettings.current.displayName
             return handsFree
-                ? "Control-Option, Esc, or Stop"
+                ? "\(chord), Esc, or Stop"
                 : "Release to paste · Esc cancels"
         case .transcribing:
             return "On this Mac — not sent anywhere"

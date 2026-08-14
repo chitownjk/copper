@@ -108,6 +108,9 @@ final class LibraryModel {
             do {
                 ToastPresenter.shared.show(.info, title: "Retrying transcription", subtitle: meeting.title)
                 try await CrashRecovery.retry(meeting)
+                if self?.selectedMeetingId == meeting.id {
+                    self?.loadDetail(for: meeting.id)
+                }
             } catch {
                 ToastPresenter.shared.show(.error, title: "Retry failed", subtitle: error.localizedDescription)
             }

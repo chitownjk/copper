@@ -3,6 +3,21 @@
 What has been built, how it was verified, and what is still open.
 Companion to [BACKLOG.md](BACKLOG.md) (story IDs) and [TECH_PLAN.md](TECH_PLAN.md) (TD-1…TD-8).
 
+
+**Feature audit / monetization (14 Aug 2026 evening):** [FEATURE_AUDIT.md](FEATURE_AUDIT.md), [MONETIZATION.md](MONETIZATION.md). No paywall.
+
+## Capture + trust slice (14 Aug 2026, gym session)
+
+Shipped on `main` after `65361e4`. Templates and follow-up email were already usable — not rebuilt.
+
+1. **Rebindable dictation hotkey** — Settings → Transcription: Control-Option (default) / Option / Control / Control-Shift / Option-Shift / Fn, plus “Also trigger with Fn alone.” Persisted. HUD and error copy use the current chord. Command is never part of the talk chord.
+2. **Calendar record list** — Main window sidebar Calendar above Library. EventKit only, today + 7 days. Per event Default / Record / Skip; This time vs This series (this time wins). Meeting-link Record = mic + system; in-person = mic only. Starts only if Companion is running and the Mac is unlocked. Session banner + toast; never silent. Tags persist; `startedEventIds` still blocks re-arm after force-quit. Settings keeps the global default rule.
+3. **Camera-in-use prompt** — physical camera on (not Companion Camera / test card, not Photo Booth if it is frontmost, not our own Go Live) shows a dictation-style tray: Record this? Yes = one-off mic + system. Never auto-starts from camera alone.
+4. **Onboarding Internet Accounts** — extra checklist row + calendar copy. Opens System Settings → Internet Accounts when the URL works. No Google OAuth.
+5. **Retry → summary UI refresh** — `LibraryModel.retry` reloads meeting detail after the pipeline finishes so a new summary appears without leaving the meeting.
+
+Verify: Debug build under `/tmp/mc-ship-dd`. Package tests include `DictationChordSpecTests` and `CalendarRecordPolicyTests`. Human loops (dictation insert, calendar auto-start, camera prompt) still need Jay on this Mac.
+
 **UX review (14 Aug 2026):** [UX_REVIEW.md](UX_REVIEW.md) — chrome audit. **Brand (locked):** [BRAND.md](BRAND.md). Shipping name is Meeting Companion; first gesture is extra → Start Recording. **Dictation spike:** [PIVOT_DICTATION.md](PIVOT_DICTATION.md) — local Wispr-style hold / double-tap; camera feature work is parked.
 
 **Repo:** `github.com/chitownjk/meeting-companion` (private). Working name is

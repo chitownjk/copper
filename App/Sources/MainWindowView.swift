@@ -5,15 +5,37 @@ import CoreMedia
 import CompanionVideoCore
 import UniformTypeIdentifiers
 
-/// Library + session banner. Settings live in the Settings window (⌘,).
+enum MainWindowSection: String, Hashable {
+    case calendar
+    case library
+}
+
+/// Calendar above Library. Settings live in the Settings window (⌘,).
 struct MainWindowView: View {
     @Environment(AppState.self) private var appState
     @State private var libraryModel = LibraryModel()
+    @State private var section: MainWindowSection = .library
 
     var body: some View {
         VStack(spacing: 0) {
             sessionBanner
-            LibraryView(model: libraryModel)
+            NavigationSplitView {
+                List(selection: $section) {
+                    Label("Calendar", systemImage: "calendar")
+                        .tag(MainWindowSection.calendar)
+                    Label("Library", systemImage: "waveform")
+                        .tag(MainWindowSection.library)
+                }
+                .listStyle(.sidebar)
+                .navigationSplitViewColumnWidth(min: 150, ideal: 168, max: 200)
+            } detail: {
+                switch section {
+                case .calendar:
+                    CalendarRecordListView()
+                case .library:
+                    LibraryView(model: libraryModel)
+                }
+            }
         }
         .frame(minWidth: 900, minHeight: 560)
         .tint(Brand.accent)
@@ -25,6 +47,7 @@ struct MainWindowView: View {
 
     private func consumePendingSelection() {
         guard let id = appState.pendingLibraryMeetingId else { return }
+        section = .library
         libraryModel.selectMeeting(id)
         appState.pendingLibraryMeetingId = nil
     }

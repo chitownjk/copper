@@ -12,13 +12,37 @@ extension Notification.Name {
     static let recordingDiskSpaceLow = Notification.Name("recordingDiskSpaceLow")
 }
 
+enum RecordingCapture: String {
+    case micAndSystem
+    case micOnly
+}
+
+struct RecordingRequest {
+    var title: String? = nil
+    var source: String = "manual"
+    var calendarEventId: String? = nil
+    var capture: RecordingCapture = .micAndSystem
+
+    static let manual = RecordingRequest()
+    static let cameraPrompt = RecordingRequest(source: "camera-prompt", capture: .micAndSystem)
+
+    static func calendar(_ event: UpcomingEvent, capture: RecordingCapture) -> RecordingRequest {
+        RecordingRequest(
+            title: event.title,
+            source: "calendar",
+            calendarEventId: event.id,
+            capture: capture
+        )
+    }
+}
+
 final class RecordingSession {
     let meeting: Meeting
     private let mic: MicRecorder
-    private let system: SystemAudioRecorder
+    private let system: SystemAudioRecorder?
     private var diskWatchdog: Task<Void, Never>?
 
-    private init(meeting: Meeting, mic: MicRecorder, system: SystemAudioRecorder) {
+    private init(meeting: Meeting, mic: MicRecorder, system: SystemAudioRecorder?) {
         self.meeting = meeting
         self.mic = mic
         self.system = system
@@ -48,7 +72,7 @@ final class RecordingSession {
         }
     }
 
-    static func start() async throws -> RecordingSession {
+    static func start(_ request: RecordingRequest = .manual) async throws -> RecordingSession {
         // Refuse rather than fail halfway through a meeting (E1.5).
         if !DiskSpace.canStartRecording() {
             throw DiskSpaceError.insufficientToStart(available: DiskSpace.availableBytes() ?? 0)
@@ -61,11 +85,11 @@ final class RecordingSession {
 
         let row = MeetingRow(
             id: id,
-            title: defaultTitle(at: startedAt),
+            title: request.title?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? defaultTitle(at: startedAt),
             startedAt: startedAt.timeIntervalSince1970,
             endedAt: nil,
-            source: "manual",
-            calendarEventId: nil,
+            source: request.source,
+            calendarEventId: request.calendarEventId,
             audioDir: dir.path,
             status: MeetingStatus.recording.rawValue
         )
@@ -75,10 +99,14 @@ final class RecordingSession {
         }
 
         let mic = try MicRecorder(outputURL: dir.appendingPathComponent("mic.wav"))
-        let system = SystemAudioRecorder(outputURL: dir.appendingPathComponent("system.wav"))
-
         try mic.start()
-        try await system.start()
+
+        var system: SystemAudioRecorder?
+        if request.capture == .micAndSystem {
+            let recorder = SystemAudioRecorder(outputURL: dir.appendingPathComponent("system.wav"))
+            try await recorder.start()
+            system = recorder
+        }
 
         let session = RecordingSession(meeting: meeting, mic: mic, system: system)
         session.startDiskWatchdog()
@@ -88,7 +116,7 @@ final class RecordingSession {
     func stop() async throws {
         diskWatchdog?.cancel()
         diskWatchdog = nil
-        try await system.stop()
+        try await system?.stop()
         mic.stop()
 
         let endedAt = Date().timeIntervalSince1970
@@ -116,4 +144,8 @@ private func defaultTitle(at date: Date) -> String {
     formatter.dateStyle = .medium
     formatter.timeStyle = .short
     return formatter.string(from: date)
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }

@@ -25,6 +25,7 @@ enum CheckAction {
     case requestMic
     case openScreenRecordingSettings
     case requestCalendar
+    case openInternetAccounts
     case openInstallInstructions(URL)
     case downloadSpeechModel
 }
@@ -60,6 +61,7 @@ final class OnboardingChecks {
             micCheck(),
             screenRecordingCheck(),
             calendarCheck(),
+            internetAccountsCheck(),
             modelCheck(),
             summarizerCheck()
         ]
@@ -108,9 +110,20 @@ final class OnboardingChecks {
         return CheckItem(
             id: "calendar",
             title: "Calendar access",
-            detail: "Optional. Lets the app show upcoming meetings and auto-record.",
+            detail: "Optional. Companion reads Apple Calendar so it can list this week and auto-record. There is no Google sign-in in this app.",
             status: cs,
             action: cs == .ok ? nil : .requestCalendar
+        )
+    }
+
+    /// Informational — always ready so it does not block the checklist.
+    private func internetAccountsCheck() -> CheckItem {
+        CheckItem(
+            id: "internet-accounts",
+            title: "Google or Outlook calendars",
+            detail: "Add the account in System Settings → Internet Accounts. Companion then sees those events through Apple Calendar.",
+            status: .ok,
+            action: .openInternetAccounts
         )
     }
 
@@ -171,6 +184,8 @@ final class OnboardingChecks {
             }
         case .requestCalendar:
             await appState?.requestCalendarAccess()
+        case .openInternetAccounts:
+            InternetAccountsOpener.open()
         case .openInstallInstructions(let url):
             NSWorkspace.shared.open(url)
         case .downloadSpeechModel:

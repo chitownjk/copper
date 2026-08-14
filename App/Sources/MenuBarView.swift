@@ -126,7 +126,7 @@ struct MenuBarView: View {
 
     private var upcomingLine: String? {
         guard appState.calendar.access == .authorized,
-              let event = appState.calendar.upcoming.first else { return nil }
+              let event = appState.calendar.nextUp else { return nil }
         return "\(formatRelativeStart(event)) · \(event.title)"
     }
 

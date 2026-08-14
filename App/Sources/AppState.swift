@@ -20,6 +20,7 @@ final class AppState {
 
     let camera = CompanionCameraController()
     let dictation = DictationController()
+    let cameraUse = CameraUseMonitor()
     @ObservationIgnored private(set) lazy var mainWindow = MainWindowController(appState: self)
 
     /// True when any client has "Meeting Companion Camera" open, including
@@ -85,6 +86,22 @@ final class AppState {
             isMeetingRecording: { [weak self] in self?.status == .recording },
             presentError: { [weak self] message in self?.setError(message) }
         )
+        let headless = ProcessInfo.processInfo.arguments.contains {
+            $0.hasPrefix("--recover-orphans")
+                || $0.hasPrefix("--install-camera-extension")
+                || $0.hasPrefix("--uninstall-camera-extension")
+                || $0.hasPrefix("--push-camera-frames")
+                || $0.hasPrefix("--camera-passthrough")
+        }
+        if !headless {
+            cameraUse.attach(
+                isRecording: { [weak self] in self?.status == .recording },
+                weAreCapturing: { [weak self] in self?.camera.isLive == true },
+                onYes: { [weak self] in
+                    Task { await self?.startRecording(.cameraPrompt) }
+                }
+            )
+        }
     }
 
     /// `--install-camera-extension` / `--uninstall-camera-extension`: headless
@@ -244,10 +261,14 @@ final class AppState {
         }
     }
 
-    func startRecording() async {
+    func startRecording(_ request: RecordingRequest = .manual) async {
         guard status == .idle || status == .armed else { return }
+        if ScreenLock.isLocked {
+            setError("Unlock this Mac to start recording.")
+            return
+        }
         do {
-            let session = try await RecordingSession.start()
+            let session = try await RecordingSession.start(request)
             currentSession = session
             status = .recording
             lastError = nil
@@ -255,7 +276,12 @@ final class AppState {
                 meetingId: session.meeting.id,
                 recordingStart: session.meeting.startedAt
             )
-            ToastPresenter.shared.show(.info, title: "Recording started", subtitle: nil)
+            let subtitle: String?
+            switch request.capture {
+            case .micAndSystem: subtitle = request.title
+            case .micOnly: subtitle = "Microphone only"
+            }
+            ToastPresenter.shared.show(.info, title: "Recording started", subtitle: subtitle)
         } catch {
             setError("Start failed: \(error.localizedDescription)")
             status = .idle

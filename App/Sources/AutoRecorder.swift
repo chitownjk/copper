@@ -1,4 +1,5 @@
 import Foundation
+import MeetingCore
 import Observation
 
 /// Watches `CalendarService.upcoming` and:
@@ -50,7 +51,7 @@ final class AutoRecorder {
     }
 
     private func tick() async {
-        guard mode != .off, let appState else { return }
+        guard let appState else { return }
         guard appState.status == .idle || appState.status == .armed else { return } // never override active recording
 
         let now = Date()
@@ -68,9 +69,12 @@ final class AutoRecorder {
         // Window: T-armWindow .. T+autoStartGrace
         if secondsUntil <= 0 && secondsUntil >= -Self.autoStartGrace {
             if startedEventIds.contains(next.id) { return }
+            if ScreenLock.isLocked { return } // do not consume the event while locked
             rememberStarted(next.id)
             armedEventId = nil
-            await appState.startRecording()
+            let capture: RecordingCapture = CalendarRecordPolicy.includesSystemAudio(hasMeetingLink: next.meetingLink != nil)
+                ? .micAndSystem : .micOnly
+            await appState.startRecording(.calendar(next, capture: capture))
         } else if secondsUntil > 0 && secondsUntil <= Self.armWindow {
             if armedShownIds.contains(next.id) { return }
             armedShownIds.insert(next.id)
@@ -84,11 +88,23 @@ final class AutoRecorder {
     private func nextCandidate(now: Date, events: [UpcomingEvent]) -> UpcomingEvent? {
         let cutoff = now.addingTimeInterval(Self.armWindow)
         return events
-            .filter { mode.qualifies($0) }
+            .filter { shouldAutoRecord($0) }
             .filter { !startedEventIds.contains($0.id) }
             .filter { $0.startDate <= cutoff && $0.startDate.timeIntervalSince(now) >= -Self.autoStartGrace }
             .sorted { $0.startDate < $1.startDate }
             .first
+    }
+
+    /// Record tag always records. Skip never does. Default follows Settings.
+    private func shouldAutoRecord(_ event: UpcomingEvent) -> Bool {
+        switch CalendarTagStore.shared.decision(for: event) {
+        case .skip:
+            return false
+        case .record:
+            return true
+        case nil:
+            return mode.qualifies(event)
+        }
     }
 
     /// Persist so a force-quit mid-recording cannot immediately re-fire the

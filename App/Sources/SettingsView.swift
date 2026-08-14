@@ -175,7 +175,7 @@ struct GeneralSettingsTab: View {
                 }
                 .pickerStyle(.radioGroup)
 
-                Text("Auto-record arms two minutes before a calendar event and starts one minute in, so a meeting that begins late still gets captured.")
+                Text("This is the default when a Calendar row is left on Default. Tag Record or Skip on the Calendar list for daily work. Auto-record arms two minutes before a qualifying event and starts within a minute of the scheduled time. Companion must be running and this Mac unlocked — recording is never silent.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -226,7 +226,15 @@ struct TranscriptionSettingsTab: View {
             }
 
             Section("Dictation") {
-                Text("Hold Control-Option to talk, or double-tap it for hands-free. On Apple keyboards, Fn alone does the same. The sentence is pasted at the cursor when you stop. Audio never leaves this Mac.")
+                Picker("Hold / double-tap", selection: $model.dictationPreset) {
+                    ForEach(DictationChordPreset.allCases) { preset in
+                        Text(preset.label).tag(preset)
+                    }
+                }
+                if model.dictationPreset != .fnOnly {
+                    Toggle("Also trigger with Fn alone", isOn: $model.dictationAlsoFnAlone)
+                }
+                Text("Hold \(DictationHotkeySettings.current.displayName) to talk, or double-tap it for hands-free. Release or tap again to paste. Esc cancels. Audio never leaves this Mac. People who already use Control-Option for something else can pick another chord here.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if !DictationPermissions.isAccessibilityTrusted() {

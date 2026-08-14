@@ -101,6 +101,7 @@ private struct CheckRow: View {
         case .requestMic:                  return "Grant"
         case .openScreenRecordingSettings: return "Open Settings"
         case .requestCalendar:             return "Grant"
+        case .openInternetAccounts:        return "Internet Accounts"
         case .openInstallInstructions:     return "Install Help"
         case .downloadSpeechModel:         return "Download"
         }

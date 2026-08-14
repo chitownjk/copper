@@ -16,7 +16,7 @@ Double-tap (or hold) in any app → speak → the sentence lands in the focused 
 
 ## Gesture
 
-Talk chord: **Control-Option** (no Command / Shift). On Apple keyboards, **Fn alone** is the same chord; Fn plus anything else is ignored so brightness / F-keys do not start a session.
+Talk chord: **Control-Option** by default (no Command). Rebind in Settings → Transcription (Option, Control, Control-Shift, Option-Shift, or Fn). **Also trigger with Fn alone** stays on by default for Apple keyboards; Fn plus any other modifier is ignored so brightness / F-keys do not start a session. Command is never part of the talk chord (Control-Option-Command-R is still Stop Recording).
 
 | Action | Result |
 |---|---|

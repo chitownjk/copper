@@ -3,8 +3,9 @@ import Carbon
 import CoreGraphics
 import MeetingCore
 
-/// Talk chord: Control-Option (no Command/Shift), or Fn alone on Apple
-/// keyboards. Hold starts push-to-talk; double-tap starts hands-free.
+/// Talk chord: whatever Settings → Transcription persisted (default
+/// Control-Option, plus Fn alone). Hold starts push-to-talk; double-tap
+/// starts hands-free.
 ///
 /// Implemented as a session event tap so Esc can be swallowed while
 /// listening. Creating the tap requires Accessibility.
@@ -192,19 +193,18 @@ final class DictationHotkeyMonitor {
 }
 
 enum DictationChord {
-    /// Control-Option without Command/Shift is the reliable chord.
-    /// Fn alone is accepted on Apple keyboards; Fn plus any other
-    /// modifier is treated as a function-key combo and ignored.
+    /// Talk chord from Settings. Default is Control-Option, plus Fn alone.
     static func isActive(_ flags: CGEventFlags) -> Bool {
         let mods = flags.intersection([
             .maskControl, .maskAlternate, .maskCommand, .maskShift, .maskSecondaryFn
         ])
-        let controlOption = mods.contains(.maskControl)
-            && mods.contains(.maskAlternate)
-            && !mods.contains(.maskCommand)
-            && !mods.contains(.maskShift)
-        if controlOption { return true }
-        return mods == .maskSecondaryFn
+        return DictationHotkeySettings.current.matches(
+            control: mods.contains(.maskControl),
+            option: mods.contains(.maskAlternate),
+            shift: mods.contains(.maskShift),
+            command: mods.contains(.maskCommand),
+            fn: mods.contains(.maskSecondaryFn)
+        )
     }
 }
 

@@ -1,5 +1,6 @@
 import Foundation
 import EventKit
+import MeetingCore
 
 struct UpcomingEvent: Identifiable, Hashable {
     let id: String
@@ -9,6 +10,10 @@ struct UpcomingEvent: Identifiable, Hashable {
     let calendarTitle: String
     let location: String?
     let meetingLink: DetectedMeetingLink?
+    /// Non-nil when EventKit says this is a recurring series (or a detached occurrence).
+    let seriesId: String?
+
+    var isRecurring: Bool { seriesId != nil }
 
     var isInProgress: Bool {
         let now = Date()
@@ -18,6 +23,8 @@ struct UpcomingEvent: Identifiable, Hashable {
     var minutesUntilStart: Int {
         Int(startDate.timeIntervalSinceNow / 60.0)
     }
+
+    var hasEnded: Bool { endDate < Date() }
 }
 
 @MainActor
@@ -72,23 +79,22 @@ final class CalendarService {
         }
     }
 
-    /// Fetches events from now to +24h across all calendars the user has authorized.
-    /// Pass `forceRemoteSync: true` to nudge the local Calendar agent to pull from
-    /// remote sources (Google/iCloud/Exchange) before reading.
+    /// Today through seven days out, all EventKit calendars this Mac already has
+    /// (iCloud / Google / Outlook via Internet Accounts — no OAuth here).
     func refresh(forceRemoteSync: Bool = false) async {
         guard access == .authorized else { return }
 
         if forceRemoteSync {
             store.refreshSourcesIfNecessary()
-            // Give the agent a beat to write new events into the local store.
             try? await Task.sleep(nanoseconds: 1_500_000_000)
         }
 
-        let now = Date()
-        let end = now.addingTimeInterval(60 * 60 * 24)
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: Date())
+        let end = cal.date(byAdding: .day, value: 8, to: start) ?? Date().addingTimeInterval(8 * 24 * 3600)
         let calendars = store.calendars(for: .event)
 
-        let predicate = store.predicateForEvents(withStart: now.addingTimeInterval(-15 * 60), end: end, calendars: calendars)
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
         let events = store.events(matching: predicate)
 
         let mapped: [UpcomingEvent] = events
@@ -103,6 +109,7 @@ final class CalendarService {
                     ek.notes,
                     ek.url?.absoluteString
                 ])
+                let recurring = ek.hasRecurrenceRules || ek.isDetached
                 return UpcomingEvent(
                     id: id,
                     title: ek.title ?? "Untitled",
@@ -110,12 +117,18 @@ final class CalendarService {
                     endDate: endDate,
                     calendarTitle: ek.calendar?.title ?? "Calendar",
                     location: ek.location,
-                    meetingLink: link
+                    meetingLink: link,
+                    seriesId: CalendarRecordPolicy.seriesId(fromEventIdentifier: id, hasRecurrence: recurring)
                 )
             }
             .sorted { $0.startDate < $1.startDate }
 
         self.upcoming = mapped
+    }
+
+    /// Next in-progress or future event (menu extra).
+    var nextUp: UpcomingEvent? {
+        upcoming.first { !$0.hasEnded }
     }
 
     func startAutoRefresh() {

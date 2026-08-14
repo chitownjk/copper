@@ -62,6 +62,15 @@ final class SettingsModel {
         set { TranscriptionSettings.language = newValue }
     }
 
+    // Stored so the picker / toggle redraw immediately (same reason as autoRecordMode).
+    var dictationPreset: DictationChordPreset = DictationHotkeySettings.preset {
+        didSet { DictationHotkeySettings.preset = dictationPreset }
+    }
+
+    var dictationAlsoFnAlone: Bool = DictationHotkeySettings.alsoFnAlone {
+        didSet { DictationHotkeySettings.alsoFnAlone = dictationAlsoFnAlone }
+    }
+
     // MARK: Summarization
 
     var providerStatuses: [SummaryProviderRegistry.Status] = []
