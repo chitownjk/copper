@@ -2,12 +2,43 @@ import MeetingCore
 import MeetingProviders
 import SwiftUI
 
-enum SettingsTab: String, CaseIterable {
+enum SettingsTab: String, CaseIterable, Identifiable {
     case camera
     case general
     case transcription
     case summaries
     case storage
+
+    var id: Self { self }
+
+    /// Short label for the always-visible preference toolbar.
+    var toolbarLabel: String {
+        switch self {
+        case .camera: return "Camera"
+        case .general: return "General"
+        case .transcription: return "Transcription"
+        case .summaries: return "Summaries"
+        case .storage: return "Storage"
+        }
+    }
+
+    /// Full name used as the pane heading / accessibility title.
+    var paneTitle: String {
+        switch self {
+        case .storage: return "Storage & Privacy"
+        default: return toolbarLabel
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .camera: return "video"
+        case .general: return "gearshape"
+        case .transcription: return "waveform"
+        case .summaries: return "text.alignleft"
+        case .storage: return "lock.shield"
+        }
+    }
 }
 
 @MainActor
@@ -23,22 +54,11 @@ struct SettingsView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
-        TabView(selection: $session.tab) {
-            CameraPaneView()
-                .tabItem { Label("Camera", systemImage: "video") }
-                .tag(SettingsTab.camera)
-            GeneralSettingsTab(model: model)
-                .tabItem { Label("General", systemImage: "gearshape") }
-                .tag(SettingsTab.general)
-            TranscriptionSettingsTab(model: model)
-                .tabItem { Label("Transcription", systemImage: "waveform") }
-                .tag(SettingsTab.transcription)
-            SummarizationSettingsTab(model: model)
-                .tabItem { Label("Summaries", systemImage: "text.alignleft") }
-                .tag(SettingsTab.summaries)
-            StorageSettingsTab(model: model)
-                .tabItem { Label("Storage & Privacy", systemImage: "lock.shield") }
-                .tag(SettingsTab.storage)
+        VStack(spacing: 0) {
+            SettingsPreferenceToolbar(selection: $session.tab)
+            Divider()
+            pane
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(minWidth: 560, minHeight: 520)
         .frame(width: session.tab == .camera ? 640 : 560, height: session.tab == .camera ? 720 : 540)
@@ -48,9 +68,89 @@ struct SettingsView: View {
         .onChange(of: session.tab) { _, _ in startCameraIfNeeded() }
     }
 
+    @ViewBuilder
+    private var pane: some View {
+        switch session.tab {
+        case .camera:
+            CameraPaneView()
+        case .general:
+            GeneralSettingsTab(model: model)
+        case .transcription:
+            TranscriptionSettingsTab(model: model)
+        case .summaries:
+            SummarizationSettingsTab(model: model)
+        case .storage:
+            StorageSettingsTab(model: model)
+        }
+    }
+
     private func startCameraIfNeeded() {
         guard session.tab == .camera else { return }
         Task { await appState.camera.goLive() }
+    }
+}
+
+/// Classic Mac Preferences strip: icon over a short label, always visible,
+/// one click per pane. TabView on macOS 26 collapsed this into a dropdown.
+private struct SettingsPreferenceToolbar: View {
+    @Binding var selection: SettingsTab
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(SettingsTab.allCases) { tab in
+                SettingsToolbarItem(
+                    tab: tab,
+                    isSelected: selection == tab
+                ) {
+                    selection = tab
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .background(.bar)
+    }
+}
+
+private struct SettingsToolbarItem: View {
+    let tab: SettingsTab
+    let isSelected: Bool
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 5) {
+                Image(systemName: tab.systemImage)
+                    .font(.system(size: 22))
+                    .symbolRenderingMode(.hierarchical)
+                    .frame(width: 28, height: 28)
+                Text(tab.toolbarLabel)
+                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(isSelected ? Brand.accent : Color.primary.opacity(0.85))
+            .frame(minWidth: 84)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(backgroundFill)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(tab.paneTitle)
+        .accessibilityLabel(tab.paneTitle)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .onHover { isHovered = $0 }
+    }
+
+    private var backgroundFill: Color {
+        if isSelected { return Brand.accent.opacity(0.16) }
+        if isHovered { return Color.primary.opacity(0.06) }
+        return .clear
     }
 }
 
@@ -457,6 +557,16 @@ struct StorageSettingsTab: View {
     @Bindable var model: SettingsModel
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Storage & Privacy")
+                .font(.title2.weight(.semibold))
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+            form
+        }
+    }
+
+    private var form: some View {
         Form {
             Section("Recorded audio") {
                 Text("Audio is the expensive part. A 45-minute meeting can be several gigabytes. Transcripts, notes, and summaries stay; only the WAV files are swept.")
