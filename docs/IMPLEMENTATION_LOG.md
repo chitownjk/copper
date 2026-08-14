@@ -3,7 +3,7 @@
 What has been built, how it was verified, and what is still open.
 Companion to [BACKLOG.md](BACKLOG.md) (story IDs) and [TECH_PLAN.md](TECH_PLAN.md) (TD-1…TD-8).
 
-**UX review (14 Aug 2026):** [UX_REVIEW.md](UX_REVIEW.md) — chrome audit. **Brand (locked):** [BRAND.md](BRAND.md). Shipping name is Meeting Companion; first gesture is extra → Start Recording; dictation HUD deferred.
+**UX review (14 Aug 2026):** [UX_REVIEW.md](UX_REVIEW.md) — chrome audit. **Brand (locked):** [BRAND.md](BRAND.md). Shipping name is Meeting Companion; first gesture is extra → Start Recording. **Dictation spike:** [PIVOT_DICTATION.md](PIVOT_DICTATION.md) — local Wispr-style hold / double-tap; camera feature work is parked.
 
 **Repo:** `github.com/chitownjk/meeting-companion` (private). Working name is
 "Meeting Companion"; the real name is still an open product decision (PRD §8),
@@ -24,6 +24,25 @@ never be provisioned. The app is now `com.strongrise.meetingcompanion` under
 team GJPMXXQTWN. `LegacyDefaultsMigration` copies the old UserDefaults domain
 once; the database/recordings (name-based path) and Keychain (literal service
 string) were never keyed by bundle ID.
+
+---
+
+## Dictation spike (14 Aug 2026)
+
+Local-first Wispr *gesture* on top of the existing on-device engines. Isolated
+under `App/Sources/Dictation/` plus `DictationGesture` / `DictationText` in
+MeetingCore. Does not touch CompanionVideoCore, the meeting library, calendar,
+or the dual-stream mix.
+
+- **Hotkey:** Control-Option hold (≥180 ms) or double-tap (350 ms window). Fn
+  alone is the same chord on Apple keyboards. Esc cancels. HUD Stop commits.
+- **Capture:** existing `MicRecorder` → temp WAV → `TranscriptionEngines.current()`
+  after stop. No streamed partials. File deleted after transcribe.
+- **Insert:** AX `AXSelectedText`, then clipboard + synthetic ⌘V, then “copied
+  instead”. Refuses Secure Keyboard Entry and password fields.
+- **Verify:** Debug compile succeeded (`-derivedDataPath /tmp/mc-dictation-dd`).
+  Gesture unit tests added. Human loop (Mail / Notes / TextEdit + Accessibility)
+  is still outstanding — see [PIVOT_DICTATION.md](PIVOT_DICTATION.md).
 
 ---
 
@@ -446,13 +465,13 @@ Owner testing of bb4b7d1: Camera settings felt like a prototype, and delete lied
 
 ### Not started
 
-- **E3.2 unified main window**, **E3.3 onboarding rewrite**, **E3.5 brand pass**
-  (bundle ID already moved to `com.strongrise.meetingcompanion`; visible name
-  still "MeetingNotes"), **E4 signing/DMG/Sparkle** (see "User actions" below).
-- **E5.2+**: capture/render pipeline (`CompanionVideoCore`), segmentation,
-  overlays. Unblocked: the sink transport it feeds into is proven. The app
-  Info.plist already carries `NSCameraUsageDescription`; first AVCaptureSession
-  use will raise the TCC prompt.
+- **Dictation human verify** — grant Mic + Accessibility and confirm a sentence
+  lands in Mail / Notes / TextEdit. Compile-only so far.
+- **E3.3 onboarding rewrite**, **E4 signing/DMG/Sparkle** (see "User actions"
+  below). E3.2 first slice and the brand/chrome pass already shipped.
+- **E5.2+ (parked):** capture/render pipeline (`CompanionVideoCore`),
+  segmentation, overlays. The sink transport is proven. Do not pick this up
+  while dictation is the wedge.
 
 ### User actions required (nobody else can do these)
 

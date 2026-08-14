@@ -71,6 +71,7 @@ final class StatusItemController: NSObject {
             _ = appState.status
             _ = appState.camera.state
             _ = appState.virtualCameraClaimed
+            _ = appState.dictation.phase
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.refreshButton()
@@ -85,6 +86,14 @@ final class StatusItemController: NSObject {
     }
 
     private func menuBarImage() -> NSImage? {
+        if appState.dictation.isActive {
+            let name = appState.dictation.phase == .transcribing
+                ? "text.badge.waveform"
+                : "mic.fill"
+            let image = NSImage(systemSymbolName: name, accessibilityDescription: "Dictating")
+            image?.isTemplate = true
+            return image
+        }
         if appState.status == .recording {
             let image = NSImage(
                 systemSymbolName: "record.circle.fill",

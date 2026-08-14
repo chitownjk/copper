@@ -218,6 +218,17 @@ struct TranscriptionSettingsTab: View {
                 }
                 LabeledContent("On disk", value: DiskSpace.describe(model.modelBytes))
             }
+
+            Section("Dictation") {
+                Text("Hold Control-Option to talk, or double-tap it for hands-free. On Apple keyboards, Fn alone does the same. The sentence is pasted at the cursor when you stop. Audio never leaves this Mac.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if !DictationPermissions.isAccessibilityTrusted() {
+                    Button("Grant Accessibility…") {
+                        DictationPermissions.promptAccessibility()
+                    }
+                }
+            }
         }
         .formStyle(.grouped)
     }
@@ -608,6 +619,10 @@ struct StorageSettingsTab: View {
                 PrivacyRow(
                     icon: "mic",
                     text: "Recording, mixing, and transcription happen entirely on this Mac."
+                )
+                PrivacyRow(
+                    icon: "keyboard",
+                    text: "Dictation audio is transcribed on this Mac and deleted immediately. It is never saved to the meeting library."
                 )
                 PrivacyRow(
                     icon: "square.and.arrow.down",

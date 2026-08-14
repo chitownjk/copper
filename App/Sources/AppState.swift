@@ -19,6 +19,7 @@ final class AppState {
     var lastError: String?
 
     let camera = CompanionCameraController()
+    let dictation = DictationController()
     @ObservationIgnored private(set) lazy var mainWindow = MainWindowController(appState: self)
 
     /// True when any client has "Meeting Companion Camera" open, including
@@ -80,6 +81,10 @@ final class AppState {
         showOnboardingIfFirstLaunch()
         subscribePipelineNotifications()
         statusItem = StatusItemController(appState: self)
+        dictation.attach(
+            isMeetingRecording: { [weak self] in self?.status == .recording },
+            presentError: { [weak self] message in self?.setError(message) }
+        )
     }
 
     /// `--install-camera-extension` / `--uninstall-camera-extension`: headless

@@ -6,6 +6,11 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if appState.dictation.isActive {
+                dictationSection
+                Divider()
+            }
+
             recordingSection
 
             if let upcoming = upcomingLine {
@@ -65,6 +70,23 @@ struct MenuBarView: View {
             .keyboardShortcut("q")
         }
         .tint(Brand.accent)
+    }
+
+    @ViewBuilder
+    private var dictationSection: some View {
+        switch appState.dictation.phase {
+        case .listeningHold, .listeningHandsFree:
+            Text("● Listening")
+                .foregroundStyle(Brand.accent)
+            Button("Stop Dictation") {
+                appState.dictation.stopFromUI()
+            }
+        case .transcribing:
+            Text("Transcribing…")
+                .foregroundStyle(Brand.accent)
+        case .idle:
+            EmptyView()
+        }
     }
 
     @ViewBuilder

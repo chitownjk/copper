@@ -11,17 +11,19 @@ You are picking up **Meeting Companion**, a macOS app at
 
 **Read first, in this order:**
 1. `docs/IMPLEMENTATION_LOG.md` — what exists, how it was verified, open concerns
-2. `CLAUDE.md` — hard rules (especially: never copy from `webcamoid/`, it is GPL-3.0)
-3. `docs/E5.1_TRACER.md` — the camera-extension breakdown and its failure modes
-4. `docs/TECH_PLAN.md` — TD-1…TD-8, the risk register
-5. `docs/BACKLOG.md` — story IDs and acceptance criteria
+2. `docs/PIVOT_DICTATION.md` — dictation spike (gesture, insert, failure modes, verify steps)
+3. `CLAUDE.md` — hard rules (especially: never copy from `webcamoid/`, it is GPL-3.0)
+4. `docs/E5.1_TRACER.md` — the camera-extension breakdown and its failure modes
+5. `docs/TECH_PLAN.md` — TD-1…TD-8, the risk register
+6. `docs/BACKLOG.md` — story IDs and acceptance criteria
 
 **Where things stand (August 2026).** M1 complete and verified. E3.1 (Xcode
 workspace), E1.4 (SpeechAnalyzer engine), E2.6 (quick actions), E3.4
 (Settings), the custom template editor, and the Database recovery prompt are
-all done and verified on this Mac. 67 tests pass from `Packages/MeetingKit`.
-The bundle ID is `com.strongrise.meetingcompanion` (the old one was squatted;
-see the log).
+all done and verified on this Mac. Brand + library-first chrome shipped
+(`381ab09`). The local-first dictation spike is in the tree — compile-verified,
+not yet human-verified in Mail. Camera feature work is parked. The bundle ID
+is `com.strongrise.meetingcompanion` (the old one was squatted; see the log).
 
 Build: `xcodebuild -project MeetingCompanion.xcodeproj -scheme MeetingNotes
 -configuration Release -derivedDataPath .dd -allowProvisioningUpdates build`.
@@ -33,7 +35,16 @@ and SpeechAnalyzer run for real; don't stub them.
 
 ## Your job
 
-### Where the video pillar stands: E5.1 done, E5.2 tracer done
+**Dictation is the wedge.** Camera feature work stays parked. Brand chrome
+already shipped — do not reopen it. Read `docs/PIVOT_DICTATION.md` before
+touching `App/Sources/Dictation/`.
+
+The spike is hold / double-tap Control-Option (Fn alone on Apple keyboards) →
+local WhisperKit or SpeechAnalyzer → paste at the cursor. A human still needs
+to grant Mic + Accessibility and confirm a sentence lands in Mail / Notes /
+TextEdit. Do not claim that loop is verified until someone does it on this Mac.
+
+### Where the video pillar stands (parked): E5.1 done, E5.2 tracer done
 
 **Human-verified end to end (August 2026):** real camera → app capture →
 sink → extension → "Meeting Companion Camera" rendering in Photo Booth and

@@ -23,7 +23,7 @@
     <key>NSCameraUsageDescription</key>
     <string>Meeting Companion connects to its own virtual camera to send it video, and will capture your camera for video effects.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Meeting Companion records your microphone during meetings so it can transcribe and summarize them.</string>
+    <string>Meeting Companion uses the microphone to record meetings and to dictate into other apps. Audio stays on this Mac.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
     <string>Meeting Companion reads your calendar to show upcoming meetings and offer one-tap recording.</string>
     <key>NSCalendarsUsageDescription</key>
