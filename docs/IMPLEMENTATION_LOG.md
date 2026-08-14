@@ -427,6 +427,19 @@ Retry stamps `ended_at` if missing (same as crash recover) and calls
 transcribe so a retry cannot duplicate a partial transcript. Live in-app
 recordings are excluded so we never process files still being written.
 
+## Camera settings, delete, and retention (August 2026)
+
+Owner testing of bb4b7d1: Camera settings felt like a prototype, and delete lied.
+
+**Why the old Camera chrome felt rudimentary.** Opening the pane did not start the camera — you paid a Go Live click just to see a preview. That preview had two tiles (self-view vs "what others see") and two Mirror toggles (one in the header, one in the form). Self-view was black. Delete said audio would be kept, so a "deleted" 45-minute meeting left ~5 GB on disk. Retention defaulted to keep-forever, which made storage the product.
+
+**Why self-view was black.** There was never a raw-camera tee. Both pickers showed the same composed `previewConsumer` frames (the sink push). "Self view" only applied `AVSampleBufferDisplayLayer.setAffineTransform(scaleX: -1)` on the view's root layer. An NSView-hosted layer anchors at (0, 0), so a horizontal flip throws the content out of bounds — black, not mirrored. Do not reintroduce a display-only flip on that layer; if a true self-view comes back, either tee the raw capture buffer into a second preview or flip inside `FrameComposer` / a dedicated CI pass.
+
+**What changed.**
+- Opening Camera settings calls `goLive()` (preview + sink). One composed preview; one "Mirror output" toggle. Stop stays on the menu extra, dock menu, and session banner. Leaving the pane does not stop the feed. No `kCMIODevicePropertyDeviceIsRunningSomewhere` auto-go-live.
+- Delete warns that audio goes too, shows size via `RecordingArtifacts.audioBytes`, and offers Delete Everything (default) / Delete Meeting, Keep Audio / Cancel. Library list and detail menu share `MeetingDeletePrompt`. CrashRecovery discard already deleted the directory; left as-is.
+- Unset / legacy implicit "keep forever" now falls back to 30 days. An explicit `forever` in UserDefaults is left alone — no surprise sweep of the existing library. "Delete audio once transcribed" is the aggressive option on the same sweeper (daily / Apply Retention Now). Copy states that audio is gigabytes, not 85 MB/hour.
+
 ## Open work
 
 ### Not started

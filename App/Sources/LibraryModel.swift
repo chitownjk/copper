@@ -97,8 +97,19 @@ final class LibraryModel {
         }
     }
 
-    func deleteSelected() async {
-        guard let id = selectedMeetingId else { return }
+    func confirmAndDelete(_ meeting: MeetingRow) {
+        switch MeetingDeletePrompt.run(for: meeting) {
+        case .deleteEverything:
+            Task { await delete(meeting, keepAudio: false) }
+        case .keepAudio:
+            Task { await delete(meeting, keepAudio: true) }
+        case .cancel:
+            break
+        }
+    }
+
+    func delete(_ meeting: MeetingRow, keepAudio: Bool) async {
+        let id = meeting.id
         do {
             try await Database.shared.write { db in
                 try db.execute(sql: "DELETE FROM segments WHERE meeting_id = ?", arguments: [id])
@@ -107,10 +118,15 @@ final class LibraryModel {
                 try db.execute(sql: "DELETE FROM meetings_fts WHERE meeting_id = ?", arguments: [id])
                 try db.execute(sql: "DELETE FROM meetings WHERE id = ?", arguments: [id])
             }
-            selectedMeetingId = nil
-            detailSummary = ""
-            detailNotes = []
-            detailSegments = []
+            if !keepAudio {
+                try? FileManager.default.removeItem(at: URL(fileURLWithPath: meeting.audioDir))
+            }
+            if selectedMeetingId == id {
+                selectedMeetingId = nil
+                detailSummary = ""
+                detailNotes = []
+                detailSegments = []
+            }
         } catch {
             print("Delete failed: \(error)")
         }

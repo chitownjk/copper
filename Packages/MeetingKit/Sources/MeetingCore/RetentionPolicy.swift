@@ -3,30 +3,31 @@ import Foundation
 /// How long raw audio is kept after a meeting is transcribed (PRD A7).
 ///
 /// Transcripts, notes, and summaries are never swept — they're small and they
-/// are the product. This governs the WAV files only, which are ~85 MB/hour.
+/// are the product. This governs the WAV files only. Dual 48 kHz Float32
+/// tracks plus a mixdown are gigabytes for a long meeting, not megabytes.
 public enum RetentionPolicy: String, CaseIterable, Identifiable, Sendable {
-    case forever
     case days30
     case afterTranscription
+    case forever
 
     public var id: String { rawValue }
 
     public var label: String {
         switch self {
-        case .forever: return "Keep audio forever"
         case .days30: return "Delete audio after 30 days"
         case .afterTranscription: return "Delete audio once transcribed"
+        case .forever: return "Keep audio forever"
         }
     }
 
     public var detail: String {
         switch self {
-        case .forever:
-            return "Nothing is deleted automatically. Audio is roughly 85 MB per hour of meeting."
         case .days30:
-            return "Transcripts, notes, and summaries are kept forever — only the audio files are removed."
+            return "Default. Transcripts, notes, and summaries stay. Audio — often gigabytes per long meeting — is removed after 30 days."
         case .afterTranscription:
-            return "Smallest footprint. You won't be able to re-transcribe or play back a meeting afterwards."
+            return "Most aggressive. The existing daily sweep deletes audio as soon as the meeting is transcribed, so a 45-minute recording does not sit on disk. You will not be able to re-transcribe or play it back."
+        case .forever:
+            return "Nothing is deleted automatically. Audio is large: a 45-minute meeting can be several gigabytes."
         }
     }
 
@@ -46,8 +47,10 @@ public enum RetentionSettings {
 
     public static var policy: RetentionPolicy {
         get {
+            // Unset / legacy implicit "keep forever" becomes 30 days. An
+            // explicit "forever" written to UserDefaults is left alone.
             UserDefaults.standard.string(forKey: policyKey)
-                .flatMap(RetentionPolicy.init(rawValue:)) ?? .forever
+                .flatMap(RetentionPolicy.init(rawValue:)) ?? .days30
         }
         set { UserDefaults.standard.set(newValue.rawValue, forKey: policyKey) }
     }

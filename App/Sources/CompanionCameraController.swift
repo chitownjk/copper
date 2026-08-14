@@ -8,8 +8,8 @@ import CompanionVideoCore
 /// + logo) → sink stream → virtual camera. This is the product path — the
 /// timed `--camera-passthrough` probe remains only as a dev affordance.
 ///
-/// Off by default at every launch: the camera never turns on without an
-/// explicit user action.
+/// Off at every launch. Opening the Camera settings pane starts the feed
+/// (preview + sink). Stop stays on the menu extra, dock menu, and banner.
 @MainActor
 @Observable
 final class CompanionCameraController {

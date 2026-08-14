@@ -444,6 +444,10 @@ struct StorageSettingsTab: View {
     var body: some View {
         Form {
             Section("Recorded audio") {
+                Text("Audio is the expensive part. A 45-minute meeting can be several gigabytes. Transcripts, notes, and summaries stay; only the WAV files are swept.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 Picker("Retention", selection: $model.retentionPolicy) {
                     ForEach(RetentionPolicy.allCases) { policy in
                         Text(policy.label).tag(policy)
@@ -455,7 +459,7 @@ struct StorageSettingsTab: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Text("Transcripts, notes, and summaries are never deleted automatically. Pin a meeting in the library to keep its audio regardless.")
+                Text("Pin a meeting in the library to keep its audio regardless of this setting.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -133,42 +133,28 @@ struct MainWindowView: View {
 
 struct CameraPaneView: View {
     @Environment(AppState.self) private var appState
-    @State private var selfView = true
 
     var body: some View {
         VStack(spacing: 16) {
-            CameraPreviewView(mirrored: selfView)
+            CameraPreviewView()
                 .aspectRatio(16 / 9, contentMode: .fit)
                 .background(Color.black)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay {
                     if !appState.camera.isLive {
                         VStack(spacing: 8) {
-                            Image(systemName: "video.slash")
-                                .font(.largeTitle)
-                            Text("Camera is off")
-                            Text("Go live to feed \"Meeting Companion Camera\" and see the preview.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            if case .failed = appState.camera.state {
+                                Image(systemName: "video.slash")
+                                    .font(.largeTitle)
+                                Text("Camera could not start")
+                            } else {
+                                ProgressView()
+                                Text("Starting camera…")
+                            }
                         }
+                        .foregroundStyle(.secondary)
                     }
                 }
-
-            HStack {
-                if appState.camera.isLive {
-                    Button("Stop Virtual Camera") { appState.camera.stopLive() }
-                } else {
-                    Button("Go Live") { Task { await appState.camera.goLive() } }
-                        .buttonStyle(.borderedProminent)
-                }
-                Picker("Preview", selection: $selfView) {
-                    Text("Self view").tag(true)
-                    Text("What others see").tag(false)
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 280)
-                Spacer()
-            }
 
             if case .failed(let message) = appState.camera.state {
                 Text(message)
@@ -233,6 +219,11 @@ struct CameraPaneView: View {
         }
         .padding()
         .navigationTitle("Camera")
+        .onAppear {
+            // Opening Camera settings is the explicit start: preview + sink,
+            // so Meet/Zoom see real frames instead of the test card.
+            Task { await appState.camera.goLive() }
+        }
     }
 
     private func chooseLogo() {
@@ -249,11 +240,10 @@ struct CameraPaneView: View {
 // MARK: - Live preview
 
 /// Hosts an AVSampleBufferDisplayLayer fed by the controller's preview tee.
-/// "Self view" mirrors the layer (display-only) the way meeting apps mirror
-/// your own tile; "what others see" shows the true outgoing orientation.
+/// One preview: the composed outgoing frames (what others see). Self-view
+/// was dropped — see IMPLEMENTATION_LOG for why it rendered black.
 private struct CameraPreviewView: NSViewRepresentable {
     @Environment(AppState.self) private var appState
-    let mirrored: Bool
 
     func makeNSView(context: Context) -> PreviewNSView {
         let view = PreviewNSView()
@@ -263,12 +253,11 @@ private struct CameraPreviewView: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ view: PreviewNSView, context: Context) {
-        view.setMirrored(mirrored)
-    }
+    func updateNSView(_ view: PreviewNSView, context: Context) {}
 
     static func dismantleNSView(_ view: PreviewNSView, coordinator: ()) {
-        // The tee outlives the pane harmlessly; cheapest correct cleanup.
+        // The tee outlives the pane on purpose: leaving Camera settings
+        // must not stop the sink, or Meet/Zoom fall back to the test card.
     }
 
     final class PreviewNSView: NSView {
@@ -283,11 +272,6 @@ private struct CameraPreviewView: NSViewRepresentable {
 
         @available(*, unavailable)
         required init?(coder: NSCoder) { fatalError() }
-
-        func setMirrored(_ mirrored: Bool) {
-            displayLayer.sublayerTransform = CATransform3DIdentity
-            displayLayer.setAffineTransform(mirrored ? CGAffineTransform(scaleX: -1, y: 1) : .identity)
-        }
 
         nonisolated func enqueue(_ sampleBuffer: CMSampleBuffer) {
             let renderer = displayLayer.sampleBufferRenderer

@@ -52,7 +52,18 @@ struct LibraryView: View {
                     MeetingRowView(
                         meeting: meeting,
                         onRetry: showsRowRetry(meeting) ? { model.retry(meeting) } : nil
-                    ).tag(meeting.id as String?)
+                    )
+                    .tag(meeting.id as String?)
+                    .contextMenu {
+                        Button("Delete Meeting", role: .destructive) {
+                            model.confirmAndDelete(meeting)
+                        }
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button("Delete", role: .destructive) {
+                            model.confirmAndDelete(meeting)
+                        }
+                    }
                 }
             }
             .listStyle(.sidebar)

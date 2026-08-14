@@ -103,7 +103,7 @@ struct MeetingDetailView: View {
                 }
                 Divider()
                 Button("Delete Meeting", role: .destructive) {
-                    confirmDelete()
+                    model.confirmAndDelete(meeting)
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -278,18 +278,6 @@ struct MeetingDetailView: View {
             .components(separatedBy: CharacterSet(charactersIn: "/\\:?*\"<>|"))
             .joined(separator: "-")
         MarkdownExporter.saveWithPanel(suggestedName: safeName, contents: md)
-    }
-
-    private func confirmDelete() {
-        let alert = NSAlert()
-        alert.messageText = "Delete this meeting?"
-        alert.informativeText = "Notes, transcript, and summary will be removed. Audio files on disk are kept."
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Delete")
-        alert.addButton(withTitle: "Cancel")
-        if alert.runModal() == .alertFirstButtonReturn {
-            Task { await model.deleteSelected() }
-        }
     }
 
     private func formatDate(_ ts: Double) -> String {
