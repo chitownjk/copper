@@ -143,7 +143,7 @@ final class OnboardingChecks {
         if let progress = modelDownloadProgress {
             detail = "Downloading… \(Int(progress * 100))%"
         } else if installed {
-            detail = WhisperModelStore.localFolder(for: modelID).path
+            detail = "Ready — \(name) is on this Mac."
         } else {
             let size = model?.approximateSizeDescription ?? "~600 MB"
             detail = "Not downloaded yet (\(size)). Downloads in the background — no Terminal needed."

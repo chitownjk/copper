@@ -49,7 +49,7 @@ struct MeetingDetailView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 8) {
                 if titleEditing {
                     TextField("Title", text: $titleDraft)
                         .textFieldStyle(.roundedBorder)
@@ -69,7 +69,8 @@ struct MeetingDetailView: View {
                         Text(formatDuration(start: meeting.startedAt, end: ended))
                     }
                     Text("·")
-                    Text(meeting.statusEnum.rawValue)
+                    Text(meeting.statusEnum.displayName)
+                        .foregroundStyle(meeting.statusEnum.displayColor)
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -84,6 +85,7 @@ struct MeetingDetailView: View {
             }
             .pickerStyle(.segmented)
             .frame(width: 280)
+            .tint(Brand.accent)
 
             if canRetry {
                 Button("Retry") {
@@ -111,8 +113,8 @@ struct MeetingDetailView: View {
             .menuStyle(.borderlessButton)
             .frame(width: 32)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 20)
     }
 
     @ViewBuilder

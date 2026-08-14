@@ -37,19 +37,16 @@ final class StatusItemController: NSObject {
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         item.button?.toolTip = "Meeting Companion"
 
-        let root = ScrollView {
-            MenuBarView()
-                .environment(appState)
-                .padding(10)
-        }
-        .frame(width: 320)
-        .frame(maxHeight: 640)
+        let root = MenuBarView()
+            .environment(appState)
+            .padding(12)
+            .frame(width: 280)
 
         let host = NSHostingController(rootView: root)
         host.sizingOptions = [.preferredContentSize]
         popover.behavior = .transient
         popover.animates = false
-        popover.contentSize = NSSize(width: 336, height: 520)
+        popover.contentSize = NSSize(width: 304, height: 360)
         popover.contentViewController = host
 
         AppDelegate.dockMenuBuilder = { [weak self] in
@@ -83,13 +80,30 @@ final class StatusItemController: NSObject {
     }
 
     private func refreshButton() {
+        item.button?.image = menuBarImage()
+        keepVisible()
+    }
+
+    private func menuBarImage() -> NSImage? {
+        if appState.status == .recording {
+            let image = NSImage(
+                systemSymbolName: "record.circle.fill",
+                accessibilityDescription: "Recording"
+            )
+            image?.isTemplate = true
+            return image
+        }
+        if let custom = NSImage(named: "MenuBarMark") {
+            custom.isTemplate = true
+            custom.size = NSSize(width: 18, height: 18)
+            return custom
+        }
         let image = NSImage(
             systemSymbolName: appState.menuBarSymbol,
             accessibilityDescription: "Meeting Companion"
         )
         image?.isTemplate = true
-        item.button?.image = image
-        keepVisible()
+        return image
     }
 
     func keepVisible() {
@@ -141,7 +155,7 @@ final class StatusItemController: NSObject {
         if appState.camera.isLive {
             addItem(menu, "Stop Virtual Camera", #selector(dockStopCamera))
         } else {
-            addItem(menu, "Go Live (Virtual Camera)", #selector(dockGoLive))
+            addItem(menu, "Go Live", #selector(dockGoLive))
         }
         menu.addItem(.separator())
         addItem(menu, "Open Meeting Companion", #selector(dockOpenMain))

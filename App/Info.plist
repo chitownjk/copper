@@ -7,7 +7,11 @@
     <key>CFBundleIdentifier</key>
     <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
     <key>CFBundleName</key>
-    <string>MeetingNotes</string>
+    <string>Meeting Companion</string>
+    <key>CFBundleDisplayName</key>
+    <string>Meeting Companion</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
     <key>CFBundleExecutable</key>
     <string>MeetingNotes</string>
     <key>CFBundleShortVersionString</key>
@@ -17,12 +21,12 @@
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSCameraUsageDescription</key>
-    <string>MeetingNotes connects to its own virtual camera to send it video, and will capture your camera for video effects.</string>
+    <string>Meeting Companion connects to its own virtual camera to send it video, and will capture your camera for video effects.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>MeetingNotes records your microphone during meetings so it can transcribe and summarize them.</string>
+    <string>Meeting Companion records your microphone during meetings so it can transcribe and summarize them.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
-    <string>MeetingNotes reads your calendar to show upcoming meetings and offer one-tap recording.</string>
+    <string>Meeting Companion reads your calendar to show upcoming meetings and offer one-tap recording.</string>
     <key>NSCalendarsUsageDescription</key>
-    <string>MeetingNotes reads your calendar to show upcoming meetings and offer one-tap recording.</string>
+    <string>Meeting Companion reads your calendar to show upcoming meetings and offer one-tap recording.</string>
 </dict>
 </plist>

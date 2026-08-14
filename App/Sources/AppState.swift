@@ -25,14 +25,15 @@ final class AppState {
     /// the extension's test-card fallback when we have not hit Go Live.
     var virtualCameraClaimed = false
 
+    var pendingLibraryMeetingId: String?
+
     private var observationTask: Task<Void, Never>?
     private let notesPanel = NotesPanelController()
-    @ObservationIgnored private lazy var library = LibraryWindowController(appState: self)
     @ObservationIgnored private var statusItem: StatusItemController?
     let calendar = CalendarService()
     private(set) var autoRecorder: AutoRecorder!
     private var onboarding: OnboardingWindowController!
-    private let settings = SettingsWindowController()
+    @ObservationIgnored private lazy var settings = SettingsWindowController(appState: self)
 
     init() {
         // Must run before anything reads a preference.
@@ -257,7 +258,12 @@ final class AppState {
     }
 
     func openLibrary() {
-        library.show()
+        mainWindow.show()
+    }
+
+    func openMeeting(id: String) {
+        pendingLibraryMeetingId = id
+        mainWindow.show()
     }
 
     func stopRecording() async {

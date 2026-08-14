@@ -5,83 +5,28 @@ import CoreMedia
 import CompanionVideoCore
 import UniformTypeIdentifiers
 
-/// The unified main window (E3.2): everything in one place, one click deep.
-/// Sidebar sections reuse the existing Library and Settings views; Camera is
-/// the new live-preview pane. The menu bar remains the quick-access surface.
-enum MainSection: String, CaseIterable, Identifiable {
-    case library
-    case camera
-    case general
-    case transcription
-    case summaries
-    case storage
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .library: return "Library"
-        case .camera: return "Camera"
-        case .general: return "General"
-        case .transcription: return "Transcription"
-        case .summaries: return "Summaries"
-        case .storage: return "Storage & Privacy"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .library: return "books.vertical"
-        case .camera: return "video"
-        case .general: return "gearshape"
-        case .transcription: return "waveform"
-        case .summaries: return "text.justify.left"
-        case .storage: return "lock.shield"
-        }
-    }
-}
-
+/// Library + session banner. Settings live in the Settings window (⌘,).
 struct MainWindowView: View {
     @Environment(AppState.self) private var appState
-    @State private var section: MainSection = .library
     @State private var libraryModel = LibraryModel()
-    @State private var settingsModel = SettingsModel()
 
     var body: some View {
         VStack(spacing: 0) {
             sessionBanner
-            NavigationSplitView {
-                List(selection: $section) {
-                    Section("App") {
-                        sidebarRow(.library)
-                    }
-                    Section("Settings") {
-                        sidebarRow(.camera)
-                        sidebarRow(.general)
-                        sidebarRow(.transcription)
-                        sidebarRow(.summaries)
-                        sidebarRow(.storage)
-                    }
-                }
-                .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-            } detail: {
-                switch section {
-                case .library:
-                    LibraryView(model: libraryModel)
-                case .camera:
-                    CameraPaneView()
-                case .general:
-                    GeneralSettingsTab(model: settingsModel)
-                case .transcription:
-                    TranscriptionSettingsTab(model: settingsModel)
-                case .summaries:
-                    SummarizationSettingsTab(model: settingsModel)
-                case .storage:
-                    StorageSettingsTab(model: settingsModel)
-                }
-            }
+            LibraryView(model: libraryModel)
         }
         .frame(minWidth: 900, minHeight: 560)
+        .tint(Brand.accent)
+        .onAppear { consumePendingSelection() }
+        .onChange(of: appState.pendingLibraryMeetingId) { _, _ in
+            consumePendingSelection()
+        }
+    }
+
+    private func consumePendingSelection() {
+        guard let id = appState.pendingLibraryMeetingId else { return }
+        libraryModel.selectMeeting(id)
+        appState.pendingLibraryMeetingId = nil
     }
 
     /// Reachable from the main window / dock even if the extra is gone —
@@ -118,14 +63,10 @@ struct MainWindowView: View {
                 }
                 Spacer()
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
             .background(.bar)
         }
-    }
-
-    private func sidebarRow(_ section: MainSection) -> some View {
-        Label(section.label, systemImage: section.symbol).tag(section)
     }
 }
 
@@ -219,11 +160,6 @@ struct CameraPaneView: View {
         }
         .padding()
         .navigationTitle("Camera")
-        .onAppear {
-            // Opening Camera settings is the explicit start: preview + sink,
-            // so Meet/Zoom see real frames instead of the test card.
-            Task { await appState.camera.goLive() }
-        }
     }
 
     private func chooseLogo() {

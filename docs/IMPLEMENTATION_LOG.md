@@ -3,7 +3,7 @@
 What has been built, how it was verified, and what is still open.
 Companion to [BACKLOG.md](BACKLOG.md) (story IDs) and [TECH_PLAN.md](TECH_PLAN.md) (TD-1…TD-8).
 
-**UX review (14 Aug 2026):** [UX_REVIEW.md](UX_REVIEW.md) — current-chrome audit against the shipping views; first gesture is extra → Start Recording; dictation HUD deferred.
+**UX review (14 Aug 2026):** [UX_REVIEW.md](UX_REVIEW.md) — chrome audit. **Brand (locked):** [BRAND.md](BRAND.md). Shipping name is Meeting Companion; first gesture is extra → Start Recording; dictation HUD deferred.
 
 **Repo:** `github.com/chitownjk/meeting-companion` (private). Working name is
 "Meeting Companion"; the real name is still an open product decision (PRD §8),

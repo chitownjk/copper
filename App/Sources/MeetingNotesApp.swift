@@ -38,7 +38,7 @@ struct MeetingNotesApp: App {
                         appState.camera.stopLive()
                     }
                 } else {
-                    Button("Go Live (Virtual Camera)") {
+                    Button("Go Live") {
                         Task { await appState.camera.goLive() }
                     }
                 }
@@ -46,6 +46,7 @@ struct MeetingNotesApp: App {
                 Button("Open Meeting Companion") {
                     appState.mainWindow.show()
                 }
+                .keyboardShortcut("l")
             }
         }
     }

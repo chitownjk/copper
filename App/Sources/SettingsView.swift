@@ -3,24 +3,30 @@ import MeetingProviders
 import SwiftUI
 
 enum SettingsTab: String, CaseIterable {
+    case camera
     case general
     case transcription
     case summaries
     case storage
 }
 
-struct SettingsView: View {
-    @State private var model = SettingsModel()
-    @State private var tab: SettingsTab
+@MainActor
+@Observable
+final class SettingsSession {
+    var tab: SettingsTab
+    init(tab: SettingsTab = .general) { self.tab = tab }
+}
 
-    /// Deep-linkable so other surfaces can send the user to the right pane —
-    /// onboarding's "add a summarizer" nudge, for instance.
-    init(tab: SettingsTab = .general) {
-        _tab = State(initialValue: tab)
-    }
+struct SettingsView: View {
+    @Bindable var session: SettingsSession
+    @State private var model = SettingsModel()
+    @Environment(AppState.self) private var appState
 
     var body: some View {
-        TabView(selection: $tab) {
+        TabView(selection: $session.tab) {
+            CameraPaneView()
+                .tabItem { Label("Camera", systemImage: "video") }
+                .tag(SettingsTab.camera)
             GeneralSettingsTab(model: model)
                 .tabItem { Label("General", systemImage: "gearshape") }
                 .tag(SettingsTab.general)
@@ -34,8 +40,17 @@ struct SettingsView: View {
                 .tabItem { Label("Storage & Privacy", systemImage: "lock.shield") }
                 .tag(SettingsTab.storage)
         }
-        .frame(width: 560, height: 520)
+        .frame(minWidth: 560, minHeight: 520)
+        .frame(width: session.tab == .camera ? 640 : 560, height: session.tab == .camera ? 720 : 540)
+        .tint(Brand.accent)
         .task { await model.load() }
+        .onAppear { startCameraIfNeeded() }
+        .onChange(of: session.tab) { _, _ in startCameraIfNeeded() }
+    }
+
+    private func startCameraIfNeeded() {
+        guard session.tab == .camera else { return }
+        Task { await appState.camera.goLive() }
     }
 }
 
@@ -459,9 +474,6 @@ struct StorageSettingsTab: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Text("Pin a meeting in the library to keep its audio regardless of this setting.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             Section("On disk") {

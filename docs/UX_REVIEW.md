@@ -1,5 +1,7 @@
 # Meeting Companion — macOS UI / UX review
 
+**Brand (locked):** [BRAND.md](BRAND.md) — name, copper accent, type, marks, and the three surfaces. This review is the chrome audit; BRAND.md is the identity. Do not reopen the name or accent.
+
 **Date:** 14 August 2026 (ET)  
 **Checkout:** `cd532ce` — *Open Camera settings to a live composed preview, and make delete/retention tell the truth about audio.*  
 **Method:** Read the current SwiftUI / AppKit views. Every quoted string is in the shipping chrome. No invented screens. Dictation HUD is not in the tree.

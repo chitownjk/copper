@@ -19,7 +19,7 @@ final class NotesPanelController {
             backing: .buffered,
             defer: false
         )
-        panel.title = "Meeting Notes"
+        panel.title = "Notes"
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]

@@ -281,6 +281,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				PRODUCT_BUNDLE_IDENTIFIER = com.strongrise.meetingcompanion;
 				PRODUCT_NAME = MeetingNotes;
 				SWIFT_VERSION = 5.0;
@@ -304,6 +305,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				PRODUCT_BUNDLE_IDENTIFIER = com.strongrise.meetingcompanion;
 				PRODUCT_NAME = MeetingNotes;
 				SWIFT_VERSION = 5.0;

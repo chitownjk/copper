@@ -15,7 +15,6 @@ struct LibraryView: View {
                 emptyDetail
             }
         }
-        .frame(minWidth: 820, minHeight: 520)
     }
 
     private var sidebar: some View {
@@ -23,7 +22,7 @@ struct LibraryView: View {
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("Search meetings", text: $model.searchQuery)
+                TextField("Search", text: $model.searchQuery)
                     .textFieldStyle(.plain)
                     .onChange(of: model.searchQuery) { _, _ in
                         model.searchChanged()
@@ -39,7 +38,7 @@ struct LibraryView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(8)
+            .padding(10)
             .background(.background.secondary)
 
             Divider()
@@ -48,6 +47,13 @@ struct LibraryView: View {
                 get: { model.selectedMeetingId },
                 set: { model.selectMeeting($0) }
             )) {
+                if model.allMeetings.isEmpty {
+                    Text("No meetings yet")
+                        .foregroundStyle(.secondary)
+                } else if model.visibleMeetings.isEmpty {
+                    Text("No meetings match")
+                        .foregroundStyle(.secondary)
+                }
                 ForEach(model.visibleMeetings) { meeting in
                     MeetingRowView(
                         meeting: meeting,
@@ -80,21 +86,38 @@ struct LibraryView: View {
         }
     }
 
+    @ViewBuilder
     private var emptyDetail: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "waveform")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text("Select a meeting")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-            if model.allMeetings.isEmpty {
-                Text("Start a recording from the menu bar to populate your library.")
-                    .font(.caption)
+        if model.allMeetings.isEmpty {
+            VStack(spacing: 16) {
+                Image(systemName: "waveform")
+                    .font(.system(size: 44, weight: .regular))
+                    .foregroundStyle(Brand.accent)
+                Text("Record a meeting")
+                    .font(.title2.weight(.semibold))
+                Text("Recordings stay on this Mac.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Button("Start Recording") {
+                    Task { await appState.startRecording() }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(Brand.accent)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(40)
+        } else {
+            VStack(spacing: 12) {
+                Image(systemName: "waveform")
+                    .font(.system(size: 40))
+                    .foregroundStyle(.secondary)
+                Text("Select a meeting")
+                    .font(.title3)
                     .foregroundStyle(.secondary)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -104,15 +127,15 @@ private struct MeetingRowView: View {
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(meeting.title)
                     .font(.system(size: 13, weight: .medium))
                     .lineLimit(1)
                 HStack(spacing: 6) {
                     Text(formatDate(meeting.startedAt))
                     Text("·")
-                    Text(statusLabel(meeting.statusEnum))
-                        .foregroundStyle(statusColor(meeting.statusEnum))
+                    Text(meeting.statusEnum.displayName)
+                        .foregroundStyle(meeting.statusEnum.displayColor)
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -124,33 +147,13 @@ private struct MeetingRowView: View {
                     .controlSize(.small)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
     }
 
     private func formatDate(_ ts: Double) -> String {
         let f = DateFormatter()
-        f.dateStyle = .short
+        f.dateStyle = .medium
         f.timeStyle = .short
         return f.string(from: Date(timeIntervalSince1970: ts))
-    }
-
-    private func statusLabel(_ s: MeetingStatus) -> String {
-        switch s {
-        case .recording:    return "● recording"
-        case .mixing:       return "mixing…"
-        case .transcribing: return "transcribing…"
-        case .summarizing:  return "summarizing…"
-        case .ready:        return "ready"
-        case .failed:       return "failed"
-        }
-    }
-
-    private func statusColor(_ s: MeetingStatus) -> Color {
-        switch s {
-        case .recording:    return .red
-        case .ready:        return .secondary
-        case .failed:       return .orange
-        default:            return .blue
-        }
     }
 }

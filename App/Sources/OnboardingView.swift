@@ -21,14 +21,15 @@ struct OnboardingView: View {
             footer
         }
         .frame(width: 540, height: 540)
+        .tint(Brand.accent)
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Setup")
+            Text("Meeting Companion")
                 .font(.title2.weight(.semibold))
-            Text("Grant the permissions and install the tools below to enable recording, transcription, and summarization.")
-                .font(.caption)
+            Text("Start Recording from the library or the menu-bar waveform. Recordings stay on this Mac. Grant the permissions below so Companion can transcribe.")
+                .font(.callout)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
