@@ -123,16 +123,11 @@ extension CrashRecovery {
     /// so we never process files that are still being written.
     static func isRetryable(_ meeting: MeetingRow, hasTranscript: Bool, liveMeetingId: String?) -> Bool {
         if meeting.id == liveMeetingId { return false }
-        guard RecordingArtifacts.isRecoverable(directory: URL(fileURLWithPath: meeting.audioDir)) else {
-            return false
-        }
-        if !hasTranscript { return true }
-        switch meeting.statusEnum {
-        case .failed, .recording, .mixing, .transcribing:
-            return true
-        case .summarizing, .ready:
-            return false
-        }
+        // Keep Retry visible whenever audio is still on disk — including
+        // Ready with a garbage transcript — so a bad Whisper pass can be
+        // re-run. `hasTranscript` is unused; audio is the source of truth.
+        _ = hasTranscript
+        return RecordingArtifacts.isRecoverable(directory: URL(fileURLWithPath: meeting.audioDir))
     }
 }
 

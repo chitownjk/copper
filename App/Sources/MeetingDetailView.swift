@@ -1,4 +1,5 @@
 import SwiftUI
+import MeetingCore
 import AppKit
 import MeetingProviders
 
@@ -24,7 +25,8 @@ struct MeetingDetailView: View {
     @State private var titleEditing: Bool = false
 
     private var canRetry: Bool {
-        CrashRecovery.isRetryable(
+        _ = model.audioRevision
+        return CrashRecovery.isRetryable(
             meeting,
             hasTranscript: !model.detailSegments.isEmpty,
             liveMeetingId: appState.currentSession?.meeting.id
@@ -102,6 +104,11 @@ struct MeetingDetailView: View {
                 Button("Export as Markdown…") { exportMarkdown() }
                 Button("Reveal Recording in Finder") {
                     NSWorkspace.shared.open(URL(fileURLWithPath: meeting.audioDir))
+                }
+                if model.meetingHasAudio(meeting) {
+                    Button("Delete Audio") {
+                        model.deleteAudio(meeting)
+                    }
                 }
                 Divider()
                 Button("Delete Meeting", role: .destructive) {

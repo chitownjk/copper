@@ -20,12 +20,13 @@ final class AutoRecorder {
 
     private weak var appState: AppState?
     private var tickTask: Task<Void, Never>?
-    private var startedEventIds: Set<String> = []
+    private var startedEventIds: Set<String>
     private var armedShownIds: Set<String> = []
 
     init(appState: AppState) {
         self.appState = appState
         self.mode = AutoRecordSettings.current
+        self.startedEventIds = AutoRecordSettings.startedEventIds
     }
 
     func start() {
@@ -67,7 +68,7 @@ final class AutoRecorder {
         // Window: T-armWindow .. T+autoStartGrace
         if secondsUntil <= 0 && secondsUntil >= -Self.autoStartGrace {
             if startedEventIds.contains(next.id) { return }
-            startedEventIds.insert(next.id)
+            rememberStarted(next.id)
             armedEventId = nil
             await appState.startRecording()
         } else if secondsUntil > 0 && secondsUntil <= Self.armWindow {
@@ -88,5 +89,12 @@ final class AutoRecorder {
             .filter { $0.startDate <= cutoff && $0.startDate.timeIntervalSince(now) >= -Self.autoStartGrace }
             .sorted { $0.startDate < $1.startDate }
             .first
+    }
+
+    /// Persist so a force-quit mid-recording cannot immediately re-fire the
+    /// same calendar event on the next launch (in-memory set would be empty).
+    private func rememberStarted(_ id: String) {
+        startedEventIds.insert(id)
+        AutoRecordSettings.startedEventIds = startedEventIds
     }
 }

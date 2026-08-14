@@ -77,13 +77,12 @@ struct LibraryView: View {
     }
 
     private func showsRowRetry(_ meeting: MeetingRow) -> Bool {
-        if meeting.id == appState.currentSession?.meeting.id { return false }
-        switch meeting.statusEnum {
-        case .failed, .recording, .mixing, .transcribing:
-            return true
-        default:
-            return false
-        }
+        _ = model.audioRevision
+        return CrashRecovery.isRetryable(
+            meeting,
+            hasTranscript: meeting.statusEnum == .ready,
+            liveMeetingId: appState.currentSession?.meeting.id
+        )
     }
 
     @ViewBuilder

@@ -20,6 +20,7 @@ actor Pipeline {
         do {
             try await runStages(meetingId: meetingId)
             try await setStatus(meetingId, .ready)
+            await RetentionSweeper.sweepMeetingIfEligible(meetingId: meetingId)
             let title = (try? await fetchMeeting(meetingId).title) ?? "Meeting"
             await postNotification(.pipelineDidComplete, userInfo: ["meetingId": meetingId, "title": title])
         } catch {
@@ -51,10 +52,19 @@ actor Pipeline {
         try await AudioMixer.mix(systemURL: systemURL, micURL: micURL, outputURL: mixedURL)
 
         try await setStatus(meetingId, .transcribing)
-        let segments = try await engine.transcribe(
+        let rawSegments = try await engine.transcribe(
             audioURL: mixedURL,
             language: TranscriptionSettings.language,
             progress: nil
+        )
+        let segments = TranscriptQuality.filter(rawSegments)
+        let recordingSeconds: TimeInterval? = {
+            guard let ended = meeting.endedAt else { return nil }
+            return ended - meeting.startedAt
+        }()
+        let usable = TranscriptQuality.isUsable(
+            segments: rawSegments,
+            recordingDurationSeconds: recordingSeconds
         )
         // Replace, don't append — Retry / recover can run over a meeting that
         // already has partial segments from a previous attempt.
@@ -70,6 +80,10 @@ actor Pipeline {
                 )
                 try row.insert(db)
             }
+        }
+
+        guard usable else {
+            throw TranscriptQualityError.unusable
         }
 
         // Summarization is best-effort. With no provider configured — the state
@@ -231,6 +245,17 @@ actor Pipeline {
         segments.map { seg in
             "[\(formatTimestampMs(seg.startMs)) TRANSCRIPT] \(seg.text)"
         }.joined(separator: "\n")
+    }
+}
+
+enum TranscriptQualityError: LocalizedError {
+    case unusable
+
+    var errorDescription: String? {
+        switch self {
+        case .unusable:
+            return "Transcript was empty or looked like a speech-model hallucination. Retry if you spoke."
+        }
     }
 }
 

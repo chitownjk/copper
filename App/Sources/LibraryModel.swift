@@ -1,4 +1,5 @@
 import Foundation
+import MeetingCore
 import Observation
 import GRDB
 import MeetingProviders
@@ -20,6 +21,8 @@ final class LibraryModel {
     /// Non-nil presents the copyable follow-up-email sheet.
     var emailDraft: String?
     var isRetrying = false
+    /// Bumped when WAV files change so Retry / Delete Audio redraw.
+    var audioRevision = 0
 
     private var observationTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
@@ -81,6 +84,20 @@ final class LibraryModel {
         } catch {
             print("Rename failed: \(error)")
         }
+    }
+
+    func deleteAudio(_ meeting: MeetingRow) {
+        if RetentionSweeper.deleteAudio(for: meeting) {
+            audioRevision += 1
+            ToastPresenter.shared.show(.info, title: "Audio deleted", subtitle: meeting.title)
+        } else {
+            ToastPresenter.shared.show(.error, title: "Couldn’t delete audio", subtitle: meeting.title)
+        }
+    }
+
+    func meetingHasAudio(_ meeting: MeetingRow) -> Bool {
+        _ = audioRevision
+        return RecordingArtifacts.audioBytes(in: URL(fileURLWithPath: meeting.audioDir)) > 0
     }
 
     func retry(_ meeting: MeetingRow) {

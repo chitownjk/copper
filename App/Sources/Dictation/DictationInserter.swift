@@ -19,17 +19,17 @@ enum DictationInsertResult: Equatable {
     }
 }
 
-/// Paste-after-stop. Mail and Gmail often refuse AXSelectedText and ignore
-/// a HID-tap ⌘V that never reaches their process. We try AX on the
-/// frontmost app's focused element, then clipboard + ⌘V posted to that
-/// app's pid, then leave the text on the clipboard.
+/// Paste-after-stop. Mail, Gmail, and Slack often accept an AX write
+/// (`.success`) without changing the focused field. We never report
+/// inserted/pasted unless a re-read of the field contains the new text.
 enum DictationInserter {
     private static let logger = Logger(subsystem: "com.strongrise.meetingcompanion", category: "dictation")
 
     /// Last insert outcome, for the HUD / toast.
     static var lastDebugLabel = ""
 
-    static func insert(_ text: String) -> DictationInsertResult {
+    @MainActor
+    static func insert(_ text: String) async -> DictationInsertResult {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return finish(.blocked("Nothing to insert.")) }
 
@@ -37,15 +37,29 @@ enum DictationInserter {
             return finish(.blocked("Secure Keyboard Entry is on. Turn it off to dictate."))
         }
 
-        let target = targetApplication()
+        var target = targetApplication()
         if let element = focusedElement(in: target), isSecure(element) {
             return finish(.blocked("Can't dictate into a password field."))
         }
 
-        if insertViaAccessibility(trimmed, in: target) {
+        // Clipboard is the honest fallback. Stage it first so a failed
+        // insert still leaves the sentence ready for ⌘V.
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(trimmed, forType: .string)
+
+        if let app = target, app.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+            app.activate()
+            try? await Task.sleep(for: .milliseconds(80))
+            target = targetApplication() ?? app
+        }
+
+        if await pasteAndVerify(trimmed, into: target) {
+            return finish(.pasted)
+        }
+        if await axInsertAndVerify(trimmed, in: target) {
             return finish(.insertedViaAX)
         }
-        return finish(insertViaPaste(trimmed, into: target))
+        return finish(.copiedInstead)
     }
 
     static func focusedFieldIsSecure() -> Bool {
@@ -76,14 +90,48 @@ enum DictationInserter {
         }
     }
 
+    // MARK: - Verify
+
+    private struct FieldSnapshot: Equatable {
+        var value: String?
+        var selected: String?
+    }
+
+    private static func snapshot(_ element: AXUIElement) -> FieldSnapshot {
+        FieldSnapshot(
+            value: stringAttribute(element, kAXValueAttribute as CFString),
+            selected: stringAttribute(element, kAXSelectedTextAttribute as CFString)
+        )
+    }
+
+    private static func fieldContains(_ text: String, _ snap: FieldSnapshot) -> Bool {
+        if let selected = snap.selected, selected.contains(text) { return true }
+        if let value = snap.value, value.contains(text) { return true }
+        return false
+    }
+
+    /// Hard proof the focused field now holds `text`. A no-op AX write
+    /// returns `.success` but leaves the snapshot unchanged.
+    private static func verifiedInsert(_ text: String, before: FieldSnapshot, after: FieldSnapshot) -> Bool {
+        guard fieldContains(text, after) else { return false }
+        if after != before { return true }
+        // Field already contained the same sentence (re-dictate). Treat as
+        // landed only if we can still read it back.
+        return after.value != nil || after.selected != nil
+    }
+
     // MARK: - Accessibility
 
-    private static func insertViaAccessibility(_ text: String, in app: NSRunningApplication?) -> Bool {
+    @MainActor
+    private static func axInsertAndVerify(_ text: String, in app: NSRunningApplication?) async -> Bool {
         guard let element = focusedElement(in: app) else { return false }
         if isSecure(element) { return false }
-        if setSelectedText(element, text) { return true }
-        if spliceIntoValue(element, text) { return true }
-        return false
+        let before = snapshot(element)
+        let wrote = setSelectedText(element, text) || spliceIntoValue(element, text)
+        guard wrote else { return false }
+        try? await Task.sleep(for: .milliseconds(80))
+        let after = snapshot(element)
+        return verifiedInsert(text, before: before, after: after)
     }
 
     private static func setSelectedText(_ element: AXUIElement, _ text: String) -> Bool {
@@ -164,31 +212,19 @@ enum DictationInserter {
 
     // MARK: - Clipboard paste
 
-    private static func insertViaPaste(_ text: String, into app: NSRunningApplication?) -> DictationInsertResult {
-        let snapshot = PasteboardSnapshot.capture()
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-
-        // Mail / Chrome often ignore a HID-tap Command-V. Post to the
-        // focused app's pid so the keystroke cannot land in our HUD.
-        let posted: Bool
-        if let pid = app?.processIdentifier,
-           pid != ProcessInfo.processInfo.processIdentifier {
-            posted = postCommandV(to: pid)
-        } else {
-            posted = false
+    @MainActor
+    private static func pasteAndVerify(_ text: String, into app: NSRunningApplication?) async -> Bool {
+        guard let pid = app?.processIdentifier,
+              pid != ProcessInfo.processInfo.processIdentifier else {
+            return false
         }
-
-        if posted {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                snapshot.restore()
-            }
-            return .pasted
-        }
-
-        // Last resort: leave the text on the clipboard. Do not restore.
-        return .copiedInstead
+        let element = focusedElement(in: app)
+        let before = element.map(snapshot) ?? FieldSnapshot()
+        guard postCommandV(to: pid) else { return false }
+        try? await Task.sleep(for: .milliseconds(280))
+        let afterElement = focusedElement(in: app) ?? element
+        let after = afterElement.map(snapshot) ?? FieldSnapshot()
+        return verifiedInsert(text, before: before, after: after)
     }
 
     /// Isolated event source so leftover Control-Option from the talk
@@ -205,35 +241,5 @@ enum DictationInserter {
         down.postToPid(pid)
         up.postToPid(pid)
         return true
-    }
-}
-
-private struct PasteboardSnapshot {
-    let items: [[String: Data]]
-
-    static func capture() -> PasteboardSnapshot {
-        var items: [[String: Data]] = []
-        for item in NSPasteboard.general.pasteboardItems ?? [] {
-            var dict: [String: Data] = [:]
-            for type in item.types {
-                if let data = item.data(forType: type) {
-                    dict[type.rawValue] = data
-                }
-            }
-            items.append(dict)
-        }
-        return PasteboardSnapshot(items: items)
-    }
-
-    func restore() {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        for dict in items {
-            let item = NSPasteboardItem()
-            for (raw, data) in dict {
-                item.setData(data, forType: NSPasteboard.PasteboardType(raw))
-            }
-            pasteboard.writeObjects([item])
-        }
     }
 }

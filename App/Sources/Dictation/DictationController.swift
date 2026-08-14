@@ -179,7 +179,7 @@ final class DictationController {
                 failAndReset("Didn’t catch that. Try again.")
                 return
             }
-            switch DictationInserter.insert(text) {
+            switch await DictationInserter.insert(text) {
             case .insertedViaAX:
                 finishWithNote(.inserted("Inserted via AX"))
             case .pasted:

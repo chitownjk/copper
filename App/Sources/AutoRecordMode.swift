@@ -44,4 +44,17 @@ enum AutoRecordSettings {
             UserDefaults.standard.set(newValue.rawValue, forKey: key)
         }
     }
+
+    /// Calendar event IDs we already auto-started. Survives force-quit so
+    /// launch cannot immediately re-arm the same event.
+    private static let startedEventIdsKey = "autoRecordStartedEventIds"
+
+    static var startedEventIds: Set<String> {
+        get {
+            Set(UserDefaults.standard.stringArray(forKey: startedEventIdsKey) ?? [])
+        }
+        set {
+            UserDefaults.standard.set(Array(newValue), forKey: startedEventIdsKey)
+        }
+    }
 }
