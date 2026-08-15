@@ -337,10 +337,43 @@ struct SummarizationSettingsTab: View {
         Form {
             Section("Default template") {
                 Picker("Template", selection: $model.defaultTemplateID) {
-                    ForEach(SummaryTemplateStore.all) { template in
+                    ForEach(model.allTemplates) { template in
                         Text(template.name).tag(template.id)
                     }
                 }
+            }
+
+            Section("Built-in templates") {
+                ForEach(model.builtInTemplates) { template in
+                    HStack {
+                        Text(template.name)
+                        if model.isBuiltInOverridden(id: template.id) {
+                            Text("Edited")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button {
+                            editorTarget = TemplateEditorTarget(template: template)
+                        } label: {
+                            Image(systemName: "pencil")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Edit template")
+                        if model.isBuiltInOverridden(id: template.id) {
+                            Button {
+                                model.resetBuiltInTemplate(id: template.id)
+                            } label: {
+                                Image(systemName: "arrow.counterclockwise")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Reset to original")
+                        }
+                    }
+                }
+                Text("Rewrite the instructions for General, 1:1, and the other defaults. Reset restores the original wording.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Custom templates") {
@@ -434,11 +467,24 @@ private struct TemplateEditorSheet: View {
                 .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(.quaternary))
 
             HStack {
+                if editing?.isBuiltIn == true, let id = editing?.id, model.isBuiltInOverridden(id: id) {
+                    Button("Reset to original") {
+                        model.resetBuiltInTemplate(id: id)
+                        if let original = SummaryTemplate.builtIn(id: id) {
+                            name = original.name
+                            prompt = original.systemPrompt
+                        }
+                    }
+                }
                 Spacer()
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 Button(editing == nil ? "Create" : "Save") {
-                    model.saveCustomTemplate(id: editing?.id, name: name, prompt: prompt)
+                    if editing?.isBuiltIn == true, let id = editing?.id {
+                        model.saveBuiltInOverride(id: id, name: name, prompt: prompt)
+                    } else {
+                        model.saveCustomTemplate(id: editing?.id, name: name, prompt: prompt)
+                    }
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)

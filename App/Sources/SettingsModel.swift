@@ -97,20 +97,34 @@ final class SettingsModel {
         set { OpenAIProvider.selectedModelID = newValue }
     }
 
-    var defaultTemplateID: String {
-        get { SummaryTemplateStore.selected.id }
-        set {
-            if let template = SummaryTemplateStore.template(id: newValue) {
+    /// Stored so @Observable publishes the picker change immediately.
+    /// A computed UserDefaults passthrough writes the value but never
+    /// invalidates the Picker — same class of bug as autoRecordMode.
+    var defaultTemplateID: String = SummaryTemplateStore.selected.id {
+        didSet {
+            if let template = SummaryTemplateStore.template(id: defaultTemplateID) {
                 SummaryTemplateStore.selected = template
             }
         }
     }
 
-    // MARK: Custom templates (E2.5's missing editor)
+    // MARK: Templates (E2.5 editor + built-in rewrites)
 
     // Stored (not computed from UserDefaults) so @Observable actually
-    // refreshes the Settings list after a save/delete.
+    // refreshes the Settings list after a save/delete/reset.
     private(set) var customTemplates: [SummaryTemplate] = SummaryTemplateStore.custom
+    private(set) var builtInTemplates: [SummaryTemplate] = SummaryTemplateStore.builtInsResolved
+    private(set) var allTemplates: [SummaryTemplate] = SummaryTemplateStore.all
+
+    private func refreshTemplates() {
+        customTemplates = SummaryTemplateStore.custom
+        builtInTemplates = SummaryTemplateStore.builtInsResolved
+        allTemplates = SummaryTemplateStore.all
+    }
+
+    func isBuiltInOverridden(id: String) -> Bool {
+        SummaryTemplateStore.isBuiltInOverridden(id: id)
+    }
 
     /// `id == nil` creates; otherwise updates in place.
     func saveCustomTemplate(id: String?, name: String, prompt: String) {
@@ -129,17 +143,27 @@ final class SettingsModel {
             ))
         }
         SummaryTemplateStore.custom = templates
-        customTemplates = SummaryTemplateStore.custom
+        refreshTemplates()
     }
 
     func deleteCustomTemplate(id: String) {
         SummaryTemplateStore.custom.removeAll { $0.id == id }
-        customTemplates = SummaryTemplateStore.custom
+        refreshTemplates()
         // A deleted default silently becoming "general" at summarize time
         // would be confusing — make the fallback visible immediately.
         if SummaryTemplateStore.template(id: defaultTemplateID) == nil {
-            SummaryTemplateStore.selected = .general
+            defaultTemplateID = SummaryTemplate.general.id
         }
+    }
+
+    func saveBuiltInOverride(id: String, name: String, prompt: String) {
+        SummaryTemplateStore.saveBuiltInOverride(id: id, name: name, systemPrompt: prompt)
+        refreshTemplates()
+    }
+
+    func resetBuiltInTemplate(id: String) {
+        SummaryTemplateStore.resetBuiltInOverride(id: id)
+        refreshTemplates()
     }
 
     enum ValidationOutcome: Equatable {

@@ -159,9 +159,17 @@ public extension SummaryTemplate {
 
 /// Built-ins plus any custom templates the user wrote. Custom templates live in
 /// UserDefaults as JSON — they're small, and this avoids a schema migration.
+/// Built-in name/prompt rewrites are stored separately so the shipped defaults
+/// stay in the binary as Reset targets.
 public enum SummaryTemplateStore {
     private static let customKey = "summaryTemplatesCustom"
     private static let selectedKey = "summaryTemplateSelected"
+    private static let overridesKey = "summaryTemplateOverrides"
+
+    private struct BuiltInOverride: Codable, Equatable {
+        var name: String
+        var systemPrompt: String
+    }
 
     public static var custom: [SummaryTemplate] {
         get {
@@ -178,8 +186,29 @@ public enum SummaryTemplateStore {
         }
     }
 
+    private static var builtInOverrides: [String: BuiltInOverride] {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: overridesKey),
+                  let decoded = try? JSONDecoder().decode([String: BuiltInOverride].self, from: data)
+            else { return [:] }
+            return decoded
+        }
+        set {
+            if newValue.isEmpty {
+                UserDefaults.standard.removeObject(forKey: overridesKey)
+            } else {
+                UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: overridesKey)
+            }
+        }
+    }
+
+    /// Shipped built-ins with any persisted name/prompt rewrite applied.
+    public static var builtInsResolved: [SummaryTemplate] {
+        SummaryTemplate.builtIns.map(applyingOverride)
+    }
+
     public static var all: [SummaryTemplate] {
-        SummaryTemplate.builtIns + custom
+        builtInsResolved + custom
     }
 
     public static func template(id: String) -> SummaryTemplate? {
@@ -190,8 +219,47 @@ public enum SummaryTemplateStore {
     public static var selected: SummaryTemplate {
         get {
             let id = UserDefaults.standard.string(forKey: selectedKey) ?? SummaryTemplate.general.id
-            return template(id: id) ?? .general
+            return template(id: id) ?? applyingOverride(.general)
         }
         set { UserDefaults.standard.set(newValue.id, forKey: selectedKey) }
+    }
+
+    public static func isBuiltInOverridden(id: String) -> Bool {
+        builtInOverrides[id] != nil
+    }
+
+    /// Persist a rewrite of a shipped built-in. Saving the original name and
+    /// prompt is treated as Reset so an unchanged Save does not leave a stale
+    /// "Edited" badge.
+    public static func saveBuiltInOverride(id: String, name: String, systemPrompt: String) {
+        guard let original = SummaryTemplate.builtIn(id: id) else { return }
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let systemPrompt = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !systemPrompt.isEmpty else { return }
+        if name == original.name && systemPrompt == original.systemPrompt {
+            resetBuiltInOverride(id: id)
+            return
+        }
+        var overrides = builtInOverrides
+        overrides[id] = BuiltInOverride(name: name, systemPrompt: systemPrompt)
+        builtInOverrides = overrides
+    }
+
+    public static func resetBuiltInOverride(id: String) {
+        var overrides = builtInOverrides
+        overrides.removeValue(forKey: id)
+        builtInOverrides = overrides
+    }
+
+    private static func applyingOverride(_ template: SummaryTemplate) -> SummaryTemplate {
+        guard template.isBuiltIn, let override = builtInOverrides[template.id] else {
+            return template
+        }
+        return SummaryTemplate(
+            id: template.id,
+            name: override.name,
+            systemPrompt: override.systemPrompt,
+            isBuiltIn: true
+        )
     }
 }
