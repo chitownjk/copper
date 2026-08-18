@@ -6,7 +6,6 @@ import SwiftUI
 /// Today + 7 days. Per-event Default / Record / Skip. This time wins over series.
 struct CalendarRecordListView: View {
     @Environment(AppState.self) private var appState
-    @State private var grainByEvent: [String: CalendarTagGrain] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -80,7 +79,6 @@ struct CalendarRecordListView: View {
                     ForEach(group.events) { event in
                         CalendarEventRow(
                             event: event,
-                            grain: grainBinding(for: event),
                             mode: appState.autoRecorder.mode
                         )
                     }
@@ -102,13 +100,6 @@ struct CalendarRecordListView: View {
         }
     }
 
-    private func grainBinding(for event: UpcomingEvent) -> Binding<CalendarTagGrain> {
-        Binding(
-            get: { grainByEvent[event.id] ?? .thisTime },
-            set: { grainByEvent[event.id] = $0 }
-        )
-    }
-
     private func placeholder(title: String, detail: String, @ViewBuilder actions: () -> some View) -> some View {
         VStack(spacing: 12) {
             Text(title)
@@ -125,11 +116,46 @@ struct CalendarRecordListView: View {
     }
 }
 
+/// Non-optional so the segmented Picker never tags `Optional.none` / `.some` and
+/// writes back through an `@Observable` store (AttributeGraph cycle).
+private enum CalendarDecisionPick: Hashable {
+    case defaultRule
+    case record
+    case skip
+
+    init(_ decision: CalendarRecordDecision?) {
+        switch decision {
+        case .record: self = .record
+        case .skip: self = .skip
+        case nil: self = .defaultRule
+        }
+    }
+
+    var storedDecision: CalendarRecordDecision? {
+        switch self {
+        case .defaultRule: return nil
+        case .record: return .record
+        case .skip: return .skip
+        }
+    }
+}
+
 private struct CalendarEventRow: View {
     let event: UpcomingEvent
-    @Binding var grain: CalendarTagGrain
     let mode: AutoRecordMode
+    @State private var grain: CalendarTagGrain
+    @State private var pick: CalendarDecisionPick
     private var store: CalendarTagStore { CalendarTagStore.shared }
+
+    init(event: UpcomingEvent, mode: AutoRecordMode) {
+        self.event = event
+        self.mode = mode
+        let grain = CalendarTagGrain.thisTime
+        _grain = State(initialValue: grain)
+        _pick = State(initialValue: CalendarDecisionPick(
+            CalendarTagStore.shared.decision(for: event, grain: grain)
+        ))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -143,6 +169,14 @@ private struct CalendarEventRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 6)
         .opacity(event.hasEnded ? 0.55 : 1)
+        .onChange(of: grain) { _, newGrain in
+            pick = CalendarDecisionPick(store.decision(for: event, grain: newGrain))
+        }
+        .onChange(of: pick) { _, newPick in
+            let stored = CalendarDecisionPick(store.decision(for: event, grain: grain))
+            guard stored != newPick else { return }
+            store.set(newPick.storedDecision, grain: grain, on: event)
+        }
     }
 
     /// Time keeps its full width so "11:30 AM–12:00 PM" never ellipsizes mid-digit.
@@ -190,10 +224,10 @@ private struct CalendarEventRow: View {
     /// Full-width stacked segments. Hidden labels so "Grain" cannot wrap to "Grai" / "n".
     private var controls: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Picker("Decision", selection: decisionBinding) {
-                Text("Default").tag(Optional<CalendarRecordDecision>.none)
-                Text("Record").tag(Optional.some(CalendarRecordDecision.record))
-                Text("Skip").tag(Optional.some(CalendarRecordDecision.skip))
+            Picker("Decision", selection: $pick) {
+                Text("Default").tag(CalendarDecisionPick.defaultRule)
+                Text("Record").tag(CalendarDecisionPick.record)
+                Text("Skip").tag(CalendarDecisionPick.skip)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -215,13 +249,6 @@ private struct CalendarEventRow: View {
         .frame(maxWidth: .infinity)
     }
 
-    private var decisionBinding: Binding<CalendarRecordDecision?> {
-        Binding(
-            get: { store.decision(for: event, grain: grain) },
-            set: { store.set($0, grain: grain, on: event) }
-        )
-    }
-
     private var timeRange: String {
         let f = DateFormatter()
         f.dateStyle = .none
@@ -241,6 +268,7 @@ private struct CalendarEventRow: View {
     }
 
     private var caption: String {
+        // Effective decision from the store after a real write, not a live Binding get/set.
         let effective = store.decision(for: event)
         let hasLink = event.meetingLink != nil
         switch effective {
