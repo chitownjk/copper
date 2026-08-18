@@ -116,8 +116,7 @@ struct CalendarRecordListView: View {
     }
 }
 
-/// Non-optional so the segmented Picker never tags `Optional.none` / `.some` and
-/// writes back through an `@Observable` store (AttributeGraph cycle).
+/// Non-optional so the segmented Picker never tags Optional.none / .some.
 private enum CalendarDecisionPick: Hashable {
     case defaultRule
     case record
@@ -145,7 +144,6 @@ private struct CalendarEventRow: View {
     let mode: AutoRecordMode
     @State private var grain: CalendarTagGrain
     @State private var pick: CalendarDecisionPick
-    private var store: CalendarTagStore { CalendarTagStore.shared }
 
     init(event: UpcomingEvent, mode: AutoRecordMode) {
         self.event = event
@@ -170,27 +168,20 @@ private struct CalendarEventRow: View {
         .padding(.vertical, 6)
         .opacity(event.hasEnded ? 0.55 : 1)
         .onChange(of: grain) { _, newGrain in
-            pick = CalendarDecisionPick(store.decision(for: event, grain: newGrain))
+            pick = CalendarDecisionPick(CalendarTagStore.shared.decision(for: event, grain: newGrain))
         }
         .onChange(of: pick) { _, newPick in
-            let stored = CalendarDecisionPick(store.decision(for: event, grain: grain))
+            let stored = CalendarDecisionPick(CalendarTagStore.shared.decision(for: event, grain: grain))
             guard stored != newPick else { return }
-            store.set(newPick.storedDecision, grain: grain, on: event)
+            CalendarTagStore.shared.set(newPick.storedDecision, grain: grain, on: event)
         }
     }
 
-    /// Time keeps its full width so "11:30 AM–12:00 PM" never ellipsizes mid-digit.
-    /// Title takes the rest and wraps to two lines; if the row is too narrow, stack.
+    /// Stacked so the sidebar never needs ViewThatFits (AttributeGraph cycles in List).
     private var heading: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                timeLabel
-                titleBlock
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                timeLabel
-                titleBlock
-            }
+        VStack(alignment: .leading, spacing: 2) {
+            timeLabel
+            titleBlock
         }
     }
 
@@ -200,7 +191,6 @@ private struct CalendarEventRow: View {
             .foregroundStyle(.secondary)
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-            .layoutPriority(2)
             .accessibilityLabel("Time")
             .accessibilityValue(timeRange)
     }
@@ -221,7 +211,6 @@ private struct CalendarEventRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Full-width stacked segments. Hidden labels so "Grain" cannot wrap to "Grai" / "n".
     private var controls: some View {
         VStack(alignment: .leading, spacing: 6) {
             Picker("Decision", selection: $pick) {
@@ -253,7 +242,7 @@ private struct CalendarEventRow: View {
         let f = DateFormatter()
         f.dateStyle = .none
         f.timeStyle = .short
-        return "\(f.string(from: event.startDate))–\(f.string(from: event.endDate))"
+        return "\(f.string(from: event.startDate))-\(f.string(from: event.endDate))"
     }
 
     private var meta: String {
@@ -268,17 +257,16 @@ private struct CalendarEventRow: View {
     }
 
     private var caption: String {
-        // Effective decision from the store after a real write, not a live Binding get/set.
-        let effective = store.decision(for: event)
+        // Local pick only. Reading CalendarTagStore in body retriggers @Observable.
         let hasLink = event.meetingLink != nil
-        switch effective {
+        switch pick {
         case .skip:
             return "Will skip."
         case .record:
             return hasLink
-                ? "Will record — microphone and system audio."
-                : "Will record — microphone only (no meeting link)."
-        case nil:
+                ? "Will record - microphone and system audio."
+                : "Will record - microphone only (no meeting link)."
+        case .defaultRule:
             if mode.qualifies(event) {
                 return hasLink
                     ? "Default: meeting-link rule — will record mic + system."
