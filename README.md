@@ -71,7 +71,6 @@ No Copper account. No transcript upload we operate.
 
 - Apple Silicon Mac
 - macOS 14 or later (macOS 26 / Apple Intelligence is where on-device summaries work with zero setup)
-- Xcode, for now (the app is not notarized; you build it)
 
 Grant Microphone, Screen Recording (for system audio), Speech, Accessibility (for dictation insert), Camera (for the virtual camera and the 5-second loop), and Calendar when asked.
 
@@ -93,7 +92,9 @@ Data lives in `~/Library/Application Support/MeetingNotes/`.
 
 ## Status
 
-Usable on a daily driver. Dictation, recording, calendar tags, summaries, and the virtual camera (logo, blur, 5-second loop, name card) are in the shipping tree. Signed updates and a downloadable DMG are not. If you want this as a Product Hunt install, that is the remaining packaging work, not a paywall.
+Daily driver. Dictation, recording, calendar tags, summaries, and Copper Camera (logo, blur, 5-second loop, name card) are in this tree.
+
+Download a signed build from [Releases](https://github.com/chitownjk/copper/releases), or build from source below.
 
 ## License
 
