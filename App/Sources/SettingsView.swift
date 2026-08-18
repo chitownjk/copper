@@ -61,14 +61,14 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(minWidth: 560, minHeight: 520)
-        .frame(width: session.tab == .camera ? 640 : 560, height: session.tab == .camera ? 720 : 540)
+        .frame(width: session.tab == .camera ? 640 : 560, height: session.tab == .camera ? 840 : 540)
         .tint(Brand.accent)
         .task { await model.load() }
         .onAppear { startCameraIfNeeded() }
         .onChange(of: session.tab) { oldTab, newTab in
             if newTab == .camera {
                 Task { await appState.camera.goLive() }
-            } else if oldTab == .camera {
+            } else if oldTab == .camera, !appState.virtualCameraClaimed, appState.camera.outputMode != .off {
                 appState.camera.stopLive()
             }
         }

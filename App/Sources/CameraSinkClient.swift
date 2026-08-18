@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 import CoreMediaIO
 import CoreMedia
 import CoreVideo
@@ -12,17 +13,46 @@ final class CameraSinkClient {
     /// Must match `FixedID.device` in the extension.
     static let deviceUID = "6E7A3B2C-9F41-4C8A-B1D5-2A6C0E9F7D31"
 
-    /// True when any client (Photo Booth, Meet, Zoom, us) has the virtual
-    /// camera open — including the extension's test-card fallback when we
-    /// have not hit Go Live.
+    /// True when a meeting app (Meet/Zoom/Teams/Photo Booth) is *reading*
+    /// Meeting Companion Camera. Our own sink writer does not count.
+    ///
+    /// `kCMIODevicePropertyDeviceIsRunningSomewhere` is sticky on this
+    /// extension (stays 1 after the sink starts, even after hangup) and
+    /// treats the sink as a client, so it cannot drive the in-call HUD.
     static func isVirtualCameraRunningSomewhere() -> Bool {
+        // Do not use DeviceIsRunningSomewhere / beingRead while we are the
+        // sink — that stays true after hangup and holds the physical camera.
+        if MeetingCallDetector.isInACall() { return true }
+        guard let device = AVCaptureDevice(uniqueID: deviceUID) else { return false }
+        return device.isInUseByAnotherApplication
+    }
+
+    /// True when a capture client (Meet/Zoom) is reading the source stream.
+    /// Our sink write does not count. This is the hangup signal: Meet
+    /// deactivated the camera, even if the tab is still open.
+    static func isVirtualCameraBeingRead() -> Bool {
         guard let device = findDevice(uid: deviceUID) else { return false }
-        var addr = address(kCMIODevicePropertyDeviceIsRunningSomewhere)
+        let input = streams(of: device, scope: CMIOObjectPropertyScope(kCMIODevicePropertyScopeInput))
+        for stream in input {
+            if isRunningSomewhere(stream) { return true }
+        }
+        return isRunningSomewhere(device, scope: CMIOObjectPropertyScope(kCMIODevicePropertyScopeInput))
+    }
+
+    private static func isRunningSomewhere(
+        _ object: CMIOObjectID,
+        scope: CMIOObjectPropertyScope = CMIOObjectPropertyScope(kCMIOObjectPropertyScopeGlobal)
+    ) -> Bool {
+        var addr = CMIOObjectPropertyAddress(
+            mSelector: CMIOObjectPropertySelector(kCMIODevicePropertyDeviceIsRunningSomewhere),
+            mScope: scope,
+            mElement: CMIOObjectPropertyElement(kCMIOObjectPropertyElementMain)
+        )
         var running: UInt32 = 0
         var used: UInt32 = 0
         let size = UInt32(MemoryLayout<UInt32>.size)
-        let status = withUnsafeMutablePointer(to: &running) { ptr in
-            CMIOObjectGetPropertyData(device, &addr, 0, nil, size, &used, ptr)
+        let status = withUnsafeMutablePointer(to: &running) { pointer in
+            CMIOObjectGetPropertyData(object, &addr, 0, nil, size, &used, pointer)
         }
         return status == kCMIOHardwareNoError && running != 0
     }

@@ -36,6 +36,15 @@ final class AppState {
     private(set) var autoRecorder: AutoRecorder!
     private var onboarding: OnboardingWindowController!
     @ObservationIgnored private lazy var settings = SettingsWindowController(appState: self)
+    @ObservationIgnored private lazy var cameraHUD = CameraControlHUD()
+    @ObservationIgnored private var didAutoStartFeedThisClaim = false
+    @ObservationIgnored private var lastSyncedVirtualClaimed = false
+    @ObservationIgnored private var wasVideoCallForHUD = false
+    @ObservationIgnored private var dismissedRecordOfferThisCall = false
+
+    /// Yes / Not now row on the combined camera HUD. Hidden after dismiss,
+    /// once recording, or when a calendar-tagged meeting is already armed.
+    var shouldOfferMeetingRecord = false
 
     init() {
         // Must run before anything reads a preference.
@@ -95,12 +104,22 @@ final class AppState {
         }
         if !headless {
             cameraUse.attach(
-                isRecording: { [weak self] in self?.status == .recording },
-                weAreCapturing: { [weak self] in self?.camera.isLive == true },
-                onYes: { [weak self] in
-                    Task { await self?.startRecording(.cameraPrompt) }
-                }
+                weAreCapturing: { [weak self] in self?.camera.isLive == true }
             )
+            startCameraHUDObservation()
+            // Camera-off default: start the card/loop now so Meet never
+            // sees the extension test card in the split second before claim.
+            if camera.outputMode == .off {
+                Task { await camera.goLive() }
+            }
+            CameraExtensionInstaller.install { outcome in
+                switch outcome {
+                case .needsUserApproval:
+                    break
+                case .completed, .willCompleteAfterReboot, .failed:
+                    break
+                }
+            }
         }
     }
 
@@ -234,6 +253,91 @@ final class AppState {
 
     func openSettings(tab: SettingsTab = .general) {
         settings.show(tab: tab)
+    }
+
+    /// Combined in-call HUD: virtual camera claimed, or a physical camera
+    /// in use the way the old "Record this?" prompt used to fire.
+    /// Settings → Camera calling goLive() does not show it.
+    private func startCameraHUDObservation() {
+        withObservationTracking {
+            _ = virtualCameraClaimed
+            _ = cameraUse.physicalCameraInUse
+            _ = status
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.syncCameraHUD()
+                self?.startCameraHUDObservation()
+            }
+        }
+        syncCameraHUD()
+    }
+
+    func refreshCameraHUD() {
+        syncCameraHUD()
+    }
+
+    func acceptMeetingRecord() {
+        dismissedRecordOfferThisCall = true
+        shouldOfferMeetingRecord = false
+        cameraHUD.show(appState: self)
+        Task { await startRecording(.cameraPrompt) }
+    }
+
+    func dismissMeetingRecord() {
+        dismissedRecordOfferThisCall = true
+        shouldOfferMeetingRecord = false
+        if isVideoCallForHUD {
+            cameraHUD.show(appState: self)
+        }
+    }
+
+    private var isVideoCallForHUD: Bool {
+        if ScreenLock.isLocked { return false }
+        return virtualCameraClaimed || cameraUse.physicalCameraInUse
+    }
+
+    private func syncCameraHUD() {
+        let claimed = virtualCameraClaimed
+        let videoCall = isVideoCallForHUD
+
+        if videoCall && !wasVideoCallForHUD {
+            if status != .recording && status != .armed && !dismissedRecordOfferThisCall {
+                shouldOfferMeetingRecord = true
+            }
+        }
+        if !videoCall && wasVideoCallForHUD {
+            dismissedRecordOfferThisCall = false
+            shouldOfferMeetingRecord = false
+        }
+        if status == .recording || status == .armed {
+            shouldOfferMeetingRecord = false
+        }
+        wasVideoCallForHUD = videoCall
+
+        if videoCall {
+            cameraHUD.show(appState: self)
+            if claimed && !didAutoStartFeedThisClaim && !camera.isLive {
+                didAutoStartFeedThisClaim = true
+                Task { await camera.goLive() }
+            }
+        } else {
+            cameraHUD.hide()
+        }
+
+        // Only unclaim / meeting end stops the feed. Camera-off during a
+        // still-claimed call must not hide the HUD or call stopLive.
+        // Camera-off stops the physical cam, which used to look like
+        // "meeting ended" and tore the sink down (name card, then bars).
+        // Only stop the feed when the call is actually gone AND we are
+        // still on live camera. Camera-off keeps pumping the loop.
+        if lastSyncedVirtualClaimed && !claimed && camera.outputMode != .off {
+            didAutoStartFeedThisClaim = false
+            camera.stopLive()
+        }
+        if !claimed {
+            didAutoStartFeedThisClaim = false
+        }
+        lastSyncedVirtualClaimed = claimed
     }
 
     private func bootstrapCalendar() async {

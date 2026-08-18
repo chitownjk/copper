@@ -4,38 +4,21 @@ import Foundation
 import Observation
 
 /// Watches physical cameras (not Companion Camera / the test card).
-/// Rising edge → "Record this?" HUD. Never auto-starts.
+/// Publishes in-use so the combined camera HUD can show; does not present
+/// its own window (the old CameraRecordPromptHUD is gone).
 @MainActor
 @Observable
 final class CameraUseMonitor {
     private static let photoBooth = "com.apple.PhotoBooth"
     private static let pollNanos: UInt64 = 1_500_000_000
 
-    @ObservationIgnored private var task: Task<Void, Never>?
-    @ObservationIgnored private var camerasWereOn = false
-    @ObservationIgnored private var dismissedThisPulse = false
-    @ObservationIgnored private let hud = CameraRecordPromptHUD()
-    @ObservationIgnored private var isRecording: () -> Bool = { false }
-    @ObservationIgnored private var weAreCapturing: () -> Bool = { false }
-    @ObservationIgnored private var onYes: () -> Void = {}
+    private(set) var physicalCameraInUse = false
 
-    func attach(
-        isRecording: @escaping () -> Bool,
-        weAreCapturing: @escaping () -> Bool,
-        onYes: @escaping () -> Void
-    ) {
-        self.isRecording = isRecording
+    @ObservationIgnored private var task: Task<Void, Never>?
+    @ObservationIgnored private var weAreCapturing: () -> Bool = { false }
+
+    func attach(weAreCapturing: @escaping () -> Bool) {
         self.weAreCapturing = weAreCapturing
-        self.onYes = onYes
-        hud.onYes = { [weak self] in
-            self?.dismissedThisPulse = true
-            self?.hud.hide()
-            onYes()
-        }
-        hud.onDismiss = { [weak self] in
-            self?.dismissedThisPulse = true
-            self?.hud.hide()
-        }
         start()
     }
 
@@ -52,25 +35,15 @@ final class CameraUseMonitor {
     func stop() {
         task?.cancel()
         task = nil
-        hud.hide()
+        physicalCameraInUse = false
     }
 
     private func tick() {
         if ScreenLock.isLocked {
-            hud.hide()
+            physicalCameraInUse = false
             return
         }
-        let on = physicalCameraInUseBySomeoneElse()
-        if on && !camerasWereOn {
-            if !dismissedThisPulse && !isRecording() {
-                hud.show()
-            }
-        }
-        if !on && camerasWereOn {
-            dismissedThisPulse = false
-            hud.hide()
-        }
-        camerasWereOn = on
+        physicalCameraInUse = physicalCameraInUseBySomeoneElse()
     }
 
     private func physicalCameraInUseBySomeoneElse() -> Bool {

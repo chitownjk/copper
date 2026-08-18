@@ -25,3 +25,27 @@ docs/screenshots/calendar.png
 docs/screenshots/library.png
 docs/screenshots/library-behind.png
 docs/screenshots/companion-window.png
+
+# Agent / session internals
+CLAUDE.md
+AGENTS.md
+.claude/
+.cursor/
+
+# Internal planning / session docs
+docs/HANDOVER.md
+docs/NEXT_SESSION_PROMPT.md
+docs/IMPLEMENTATION_LOG.md
+docs/TECH_PLAN.md
+docs/BACKLOG.md
+docs/PRD.md
+docs/FEATURE_AUDIT.md
+docs/PIVOT_DICTATION.md
+docs/UX_REVIEW.md
+docs/E5.1_TRACER.md
+docs/MONETIZATION.md
+docs/BRAND.md
+docs/brand/
+
+# Pre-migration leftover at repo root only
+/Tests/

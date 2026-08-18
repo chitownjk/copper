@@ -21,6 +21,8 @@ final class StatusItemController: NSObject {
     private var claimTimer: Timer?
     private var hotKeyRef: EventHotKeyRef?
     private var hotKeyHandler: EventHandlerRef?
+    private var unseenReaderSince: Date?
+    private static let unclaimGrace: TimeInterval = 0.35
 
     init(appState: AppState) {
         self.appState = appState
@@ -133,22 +135,40 @@ final class StatusItemController: NSObject {
     // MARK: - Virtual-camera claim (test-card path)
 
     private func startClaimTimer() {
-        let timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.pollClaimAndKeepVisible()
             }
         }
-        timer.tolerance = 0.5
+        timer.tolerance = 0.2
         RunLoop.main.add(timer, forMode: .common)
         claimTimer = timer
         pollClaimAndKeepVisible()
     }
 
     private func pollClaimAndKeepVisible() {
-        let claimed = CameraSinkClient.isVirtualCameraRunningSomewhere()
+        // isInUseByAnotherApplication is false for this CMIO device.
+        // MeetingCallDetector (windows + Chrome/Safari Meet tabs) is the
+        // hangup signal. Do not treat "we are live" as still in a call.
+        let readers = CameraSinkClient.isVirtualCameraRunningSomewhere()
+        let claimed: Bool
+        if readers {
+            unseenReaderSince = nil
+            claimed = true
+        } else {
+            if unseenReaderSince == nil {
+                unseenReaderSince = Date()
+            }
+            // Rising edge is immediate. Falling edge waits N seconds of
+            // no readers so a Meet camera-toggle blip does not tear down
+            // the feed — and a sticky CMIO flag cannot leave a zombie HUD.
+            let elapsed = Date().timeIntervalSince(unseenReaderSince ?? Date())
+            claimed = appState.virtualCameraClaimed && elapsed < Self.unclaimGrace
+        }
         if appState.virtualCameraClaimed != claimed {
             appState.virtualCameraClaimed = claimed
         }
+        appState.refreshCameraHUD()
         keepVisible()
     }
 

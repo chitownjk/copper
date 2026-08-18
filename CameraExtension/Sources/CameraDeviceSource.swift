@@ -156,7 +156,9 @@ final class CameraDeviceSource: NSObject, CMIOExtensionDeviceSource {
     func stopSinkStreaming() {
         let consumed = sinkLock.withLock {
             sinkClient = nil
-            lastSinkFrame = nil
+            // Keep lastSinkFrame. Niling it is how a 1s gap becomes bars
+            // on the still-running v8 extension (and a "Camera off" card
+            // on v10). Meet should see the last real frame until we push again.
             return sinkFramesConsumed
         }
         extensionLogger.info("sink stopped after \(consumed) frames")
@@ -199,7 +201,9 @@ final class CameraDeviceSource: NSObject, CMIOExtensionDeviceSource {
     private func emitFrame() {
         let now = CMClockGetTime(CMClockGetHostTimeClock()).seconds
         let (sinkFrame, consumed): (CVPixelBuffer?, UInt64) = sinkLock.withLock {
-            if let frame = lastSinkFrame, now - lastSinkFrameSeconds < sinkStaleThreshold {
+            // Keep the last composed frame forever. Falling back to an idle
+            // card after 1s is how Meet kept seeing color bars.
+            if let frame = lastSinkFrame {
                 return (frame, sinkFramesConsumed)
             }
             return (nil, sinkFramesConsumed)
@@ -209,7 +213,7 @@ final class CameraDeviceSource: NSObject, CMIOExtensionDeviceSource {
             if relayingSinkFrames {
                 extensionLogger.info("relaying app frames (\(consumed) consumed so far)")
             } else {
-                extensionLogger.info("sink idle or stale — serving test card")
+                extensionLogger.info("sink idle or stale — serving idle card")
             }
         }
 

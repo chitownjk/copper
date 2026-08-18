@@ -1,4 +1,4 @@
-# Meeting Companion
+# Copper
 
 **Free local dictation for Mac. Private meeting notes in the same app.**
 
@@ -16,26 +16,36 @@ This README is the product page. There is no paid tier and no hosted site.
 
 ## Why it exists
 
-Wispr Flow is good and expensive, and it hears everything in the cloud. Meeting Companion is the opposite bet: speak on this Mac, keep the audio here.
+Wispr Flow is good and expensive, and it hears everything in the cloud. Copper is the opposite bet: speak on this Mac, keep the audio here.
 
 ## What it does
 
 - **Dictate anywhere.** Hold or double-tap a chord (Control-Option by default; you can rebind it). On-device speech to text, then the words paste into Mail, a browser, Notes, wherever you were typing.
 - **Record a meeting.** Microphone plus system audio for Zoom / Meet / Teams. Microphone only for in-person 1:1s. Timestamped notes while it runs. Searchable library. Markdown export.
 - **Transcribe and summarize on the Mac.** WhisperKit or Apple SpeechAnalyzer for the transcript. Optional Apple Intelligence summaries, or your own OpenAI / Anthropic key, or a local server (Ollama / LM Studio). Summaries are optional. A transcript still lands with nothing configured.
-- **Tag the calendar.** Companion reads Apple Calendar. Add Google or Outlook in System Settings → Internet Accounts. There is no Google login in the app. Mark Default / Record / Skip per event or series.
+- **Tag the calendar.** Copper reads Apple Calendar. Add Google or Outlook in System Settings → Internet Accounts. There is no Google login in the app. Mark Default / Record / Skip per event or series.
 
 ![Calendar](docs/screenshots/calendar-demo.png)
 
 *Tag Default, Record, or Skip for this event or the whole series.*
 
-- **Ad-hoc capture.** If a physical camera turns on, Companion can ask “Record this?” It never starts from the camera alone.
+- **Ad-hoc capture.** If a physical camera turns on, Copper can ask “Record this?” It never starts from the camera alone.
 
-Virtual camera (blur, logo, standby card) exists and is parked. It is not the reason to install.
+## Camera off, without Camo
+
+In Zoom or Meet, pick Copper Camera. Live, you can overlay a logo and blur the background. Flip to Camera off and Meet's camera stays on — we swap the feed.
+
+The good part: tap record on the in-call HUD and we grab **five seconds right now**. Different shirt, same meeting. Blur and logo are baked into that clip. Camera off then loops it. No loop? A still, or a name card you can edit (title and subtitle).
+
+Camo and mmhmm charge for a logo on the camera. The 5-second loop is the thing they do not even sell. Here both are free, and they never leave this Mac.
+
+![Record a 5-second loop, then Camera off](docs/screenshots/camera-loop.gif)
+
+*Record 5 seconds from the HUD. Take the bottle away. Camera off still has it.*
 
 ## What never leaves the Mac
 
-Recording, transcription, notes, search, and calendar tags are local.
+Recording, transcription, notes, search, calendar tags, and the virtual camera (live, loop, still, card) are local.
 
 The only network the app may use, and only if you opt in:
 
@@ -43,7 +53,7 @@ The only network the app may use, and only if you opt in:
 - a summarizer API key *you* pasted (your provider, your bill)
 - a local server URL you pointed at
 
-No Companion account. No transcript upload we operate.
+No Copper account. No transcript upload we operate.
 
 ![Summaries](docs/screenshots/settings-summaries.png)
 
@@ -63,13 +73,13 @@ No Companion account. No transcript upload we operate.
 - macOS 14 or later (macOS 26 / Apple Intelligence is where on-device summaries work with zero setup)
 - Xcode, for now (the app is not notarized; you build it)
 
-Grant Microphone, Screen Recording (for system audio), Speech, Accessibility (for dictation insert), and Calendar when asked.
+Grant Microphone, Screen Recording (for system audio), Speech, Accessibility (for dictation insert), Camera (for the virtual camera and the 5-second loop), and Calendar when asked.
 
 ## Build
 
 ```bash
-git clone https://github.com/chitownjk/meeting-companion.git
-cd meeting-companion
+git clone https://github.com/chitownjk/copper.git
+cd copper
 xcodebuild -project MeetingCompanion.xcodeproj -scheme MeetingNotes \
   -configuration Release -derivedDataPath .dd build
 open .dd/Build/Products/Release/MeetingNotes.app
@@ -83,9 +93,7 @@ Data lives in `~/Library/Application Support/MeetingNotes/`.
 
 ## Status
 
-Usable on a daily driver. Dictation, recording, calendar tags, and summaries are in the shipping tree. Signed updates and a downloadable DMG are not. If you want this as a Product Hunt install, that is the remaining packaging work, not a paywall.
-
-Working name is Meeting Companion. The real name is still open.
+Usable on a daily driver. Dictation, recording, calendar tags, summaries, and the virtual camera (logo, blur, 5-second loop, name card) are in the shipping tree. Signed updates and a downloadable DMG are not. If you want this as a Product Hunt install, that is the remaining packaging work, not a paywall.
 
 ## License
 

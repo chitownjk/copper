@@ -113,7 +113,7 @@ struct CameraPaneView: View {
                                 Text("Camera could not start")
                             } else {
                                 ProgressView()
-                                Text("Starting camera…")
+                                Text("Starting…")
                             }
                         }
                         .foregroundStyle(.secondary)
@@ -128,26 +128,78 @@ struct CameraPaneView: View {
             }
 
             Form {
-                Picker("Background", selection: Binding(
-                    get: { appState.camera.backgroundMode },
-                    set: { appState.camera.setBackgroundMode($0) }
+                Picker("Output", selection: Binding(
+                    get: { appState.camera.outputMode },
+                    set: { appState.camera.applyOutputMode($0) }
                 )) {
-                    Text("None").tag(BackgroundMode.none)
-                    Text("Blur").tag(BackgroundMode.blur)
+                    Text("Live camera").tag(CompanionCameraController.OutputMode.live)
+                    Text("Camera off").tag(CompanionCameraController.OutputMode.off)
                 }
                 .pickerStyle(.segmented)
+                .disabled(appState.camera.isRecordingLoop)
 
-                if appState.camera.backgroundMode == .blur {
-                    Picker("Blur strength", selection: Binding(
-                        get: { appState.camera.blurStrength },
-                        set: { appState.camera.setBlurStrength($0) }
-                    )) {
-                        ForEach(BlurStrength.allCases, id: \.self) { strength in
-                            Text(strength.label).tag(strength)
+                LabeledContent("Loop") {
+                    HStack {
+                        if let remaining = appState.camera.loopRecordSecondsLeft {
+                            Text("Recording — \(remaining)")
+                                .foregroundStyle(Brand.accent)
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Text(appState.camera.loopDisplayName ?? "None")
+                                .foregroundStyle(appState.camera.loopDisplayName == nil ? .secondary : .primary)
+                                .lineLimit(1)
+                                .frame(maxWidth: 140, alignment: .leading)
+                            Button("Record 5s") {
+                                Task { await appState.camera.recordLoop() }
+                            }
+                            Button("File…") { chooseLoop() }
+                                .help("Use a file as a fallback. A just-recorded loop looks current.")
+                            Button("Clear") { appState.camera.clearLoop() }
+                                .disabled(appState.camera.loopDisplayName == nil)
                         }
                     }
-                    .pickerStyle(.segmented)
                 }
+
+                Text("Record a 5-second loop from this camera, then flip to Camera off to play it. Meet's own camera toggle is not this — leave Meet's camera ON.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                TextField("Off-card title", text: Binding(
+                    get: { appState.camera.offCardTitle },
+                    set: { appState.camera.offCardTitle = $0 }
+                ), prompt: Text(NSFullUserName()))
+
+                TextField("Off-card subtitle", text: Binding(
+                    get: { appState.camera.offCardSubtitle },
+                    set: { appState.camera.offCardSubtitle = $0 }
+                ), prompt: Text("Optional"))
+
+                LabeledContent("Still") {
+                    HStack {
+                        Text(appState.camera.stillDisplayName ?? "None")
+                            .foregroundStyle(appState.camera.stillDisplayName == nil ? .secondary : .primary)
+                            .lineLimit(1)
+                            .frame(maxWidth: 180, alignment: .leading)
+                        Button("Choose…") { chooseStill() }
+                        Button("Clear") { appState.camera.clearStill() }
+                            .disabled(appState.camera.stillDisplayName == nil)
+                    }
+                }
+
+                Text("Off-state order: recorded loop, then still, then the off card.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Picker("Blur", selection: Binding(
+                    get: { appState.camera.liveBlur },
+                    set: { appState.camera.setLiveBlur($0) }
+                )) {
+                    ForEach(CompanionCameraController.LiveBlur.allCases) { blur in
+                        Text(blur.label).tag(blur)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .disabled(appState.camera.outputMode == .off)
 
                 LabeledContent("Logo") {
                     HStack {
@@ -188,6 +240,7 @@ struct CameraPaneView: View {
                     get: { appState.camera.mirrorsOutput },
                     set: { appState.camera.setMirrorOutput($0) }
                 ))
+                .disabled(appState.camera.outputMode == .off)
             }
             .formStyle(.grouped)
         }
@@ -202,6 +255,26 @@ struct CameraPaneView: View {
         panel.message = "Choose a logo image (PNG with transparency works best)."
         if panel.runModal() == .OK, let url = panel.url {
             appState.camera.addLogo(from: url)
+        }
+    }
+
+    private func chooseLoop() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.mpeg4Movie, .quickTimeMovie]
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a short loop (mp4 or mov). Prefer Record 5s so it matches what you are wearing."
+        if panel.runModal() == .OK, let url = panel.url {
+            appState.camera.setLoop(from: url)
+        }
+    }
+
+    private func chooseStill() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.png, .jpeg]
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a still image (PNG or JPEG)."
+        if panel.runModal() == .OK, let url = panel.url {
+            appState.camera.setStill(from: url)
         }
     }
 }

@@ -45,9 +45,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
 
     /// Hidden windows keep their hosting view, so SwiftUI onDisappear is
-    /// not reliable here. Stop the settings-started feed on close.
+    /// not reliable here. Stop the settings-started feed on close — unless
+    /// a meeting app still has the virtual camera claimed (the in-call HUD
+    /// owns the feed then).
     func windowWillClose(_ notification: Notification) {
-        if session?.tab == .camera {
+        if session?.tab == .camera, !appState.virtualCameraClaimed, appState.camera.outputMode != .off {
             appState.camera.stopLive()
         }
     }

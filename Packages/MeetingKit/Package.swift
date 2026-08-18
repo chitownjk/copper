@@ -43,6 +43,10 @@ let package = Package(
         .testTarget(
             name: "MeetingProvidersTests",
             dependencies: ["MeetingProviders"]
+        ),
+        .testTarget(
+            name: "CompanionVideoCoreTests",
+            dependencies: ["CompanionVideoCore"]
         )
     ]
 )

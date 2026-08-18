@@ -41,6 +41,15 @@ public final class FrameComposer {
     public static let width = 1920
     public static let height = 1080
 
+    /// Live applies blur + mirror + logo. overlayOnly is the camera-off
+    /// path for stills/cards/imported loops (normalize + logo). passthrough
+    /// is a pre-composed recorded loop — normalize only, never stamp again.
+    public enum Effects: Sendable {
+        case live
+        case overlayOnly
+        case passthrough
+    }
+
     private static let logger = Logger(subsystem: "com.strongrise.meetingcompanion", category: "frame-composer")
 
     private let context = CIContext(options: [.cacheIntermediates: false])
@@ -127,15 +136,22 @@ public final class FrameComposer {
     /// Returns a 1920×1080 BGRA buffer ready for the sink: the input itself
     /// when nothing needs doing, otherwise a rendered copy (scaled and/or
     /// logo-composited). nil if rendering fails.
-    public func compose(_ input: CVPixelBuffer) -> CVPixelBuffer? {
+    ///
+    /// `effects: .overlayOnly` is the camera-off path — logo still stamps,
+    /// blur and mirror do not. `.passthrough` never stamps a logo (the
+    /// recorded 5s loop already has blur + mirror + logo baked in).
+    public func compose(_ input: CVPixelBuffer, effects: Effects = .live) -> CVPixelBuffer? {
         let (logo, mirror, background, strength) = stateLock.withLock { (logoImage, mirrorOutput, backgroundMode, blurStrength) }
+        let applyBlur = effects == .live && background == .blur
+        let applyMirror = effects == .live && mirror
+        let applyLogo = effects != .passthrough
         let width = CVPixelBufferGetWidth(input)
         let height = CVPixelBufferGetHeight(input)
         let matches = width == Self.width && height == Self.height
             && CVPixelBufferGetPixelFormatType(input) == kCVPixelFormatType_32BGRA
-        if matches, logo == nil, !mirror, background == .none {
-            return input
-        }
+        // Never return the input. No-logo live used to take a fast path and
+        // CMIO dropped those camera frames (bars). Always render into our
+        // IOSurface pool.
 
         var base = CIImage(cvPixelBuffer: input)
         if !matches {
@@ -145,11 +161,12 @@ public final class FrameComposer {
             }
             base = aspectFill(base)
         }
-        if background == .blur {
+        if applyBlur {
             base = blurredBackground(base: base, input: input, sigma: strength.sigma)
         }
-        var composed = logo.map { $0.composited(over: base) } ?? base
-        if mirror {
+        let stamp = applyLogo ? logo : nil
+        var composed = stamp.map { $0.composited(over: base) } ?? base
+        if applyMirror {
             // x' = width - x: horizontal flip of the full frame.
             composed = composed.transformed(by: CGAffineTransform(-1, 0, 0, 1, CGFloat(Self.width), 0))
         }

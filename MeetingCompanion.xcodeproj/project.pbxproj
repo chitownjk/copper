@@ -9,9 +9,9 @@
 /* Begin PBXBuildFile section */
 		AA00000000000000000000E1 /* MeetingCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000F1 /* MeetingCore */; };
 		AA00000000000000000000E2 /* MeetingProviders in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000F2 /* MeetingProviders */; };
-		AA00000000000000000000E4 /* CompanionVideoCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000F4 /* CompanionVideoCore */; };
 		AA00000000000000000000E3 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000F3 /* GRDB */; };
-		BB00000000000000000000E6 /* CameraExtension in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = BB00000000000000000000A6 /* com.strongrise.meetingcompanion.cameraextension.systemextension */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AA00000000000000000000E4 /* CompanionVideoCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000F4 /* CompanionVideoCore */; };
+		BB00000000000000000000E6 /* com.strongrise.meetingcompanion.cameraextension.systemextension in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = BB00000000000000000000A6 /* com.strongrise.meetingcompanion.cameraextension.systemextension */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -31,7 +31,7 @@
 			dstPath = "$(SYSTEM_EXTENSIONS_FOLDER_PATH)";
 			dstSubfolderSpec = 16;
 			files = (
-				BB00000000000000000000E6 /* CameraExtension in Embed System Extensions */,
+				BB00000000000000000000E6 /* com.strongrise.meetingcompanion.cameraextension.systemextension in Embed System Extensions */,
 			);
 			name = "Embed System Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -44,8 +44,17 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		AA00000000000000000000A3 /* Sources */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = App/Sources; sourceTree = "<group>"; };
-		BB00000000000000000000A5 /* CameraExtensionSources */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); name = CameraExtensionSources; path = CameraExtension/Sources; sourceTree = "<group>"; };
+		AA00000000000000000000A3 /* App/Sources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = App/Sources;
+			sourceTree = "<group>";
+		};
+		BB00000000000000000000A5 /* CameraExtensionSources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			name = CameraExtensionSources;
+			path = CameraExtension/Sources;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -60,13 +69,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BB00000000000000000000D5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		AA00000000000000000000A1 = {
 			isa = PBXGroup;
 			children = (
-				AA00000000000000000000A3 /* Sources */,
+				AA00000000000000000000A3 /* App/Sources */,
 				BB00000000000000000000A5 /* CameraExtensionSources */,
 				AA00000000000000000000A2 /* Products */,
 			);
@@ -99,7 +115,7 @@
 				BB00000000000000000000E4 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				AA00000000000000000000A3 /* Sources */,
+				AA00000000000000000000A3 /* App/Sources */,
 			);
 			name = MeetingNotes;
 			packageProductDependencies = (
@@ -134,14 +150,6 @@
 			productType = "com.apple.product-type.system-extension";
 		};
 /* End PBXNativeTarget section */
-
-/* Begin PBXTargetDependency section */
-		BB00000000000000000000E4 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = BB00000000000000000000B3 /* CameraExtension */;
-			targetProxy = BB00000000000000000000E5 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin PBXProject section */
 		AA00000000000000000000B1 /* Project object */ = {
@@ -206,15 +214,13 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin PBXFrameworksBuildPhase (CameraExtension) section */
-		BB00000000000000000000D5 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
+/* Begin PBXTargetDependency section */
+		BB00000000000000000000E4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BB00000000000000000000B3 /* CameraExtension */;
+			targetProxy = BB00000000000000000000E5 /* PBXContainerItemProxy */;
 		};
-/* End PBXFrameworksBuildPhase (CameraExtension) section */
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		AA00000000000000000000C3 /* Debug */ = {
@@ -267,6 +273,7 @@
 		AA00000000000000000000C5 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/MeetingNotes.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -281,7 +288,6 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				PRODUCT_BUNDLE_IDENTIFIER = com.strongrise.meetingcompanion;
 				PRODUCT_NAME = MeetingNotes;
 				SWIFT_VERSION = 5.0;
@@ -291,6 +297,7 @@
 		AA00000000000000000000C6 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/MeetingNotes.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -305,15 +312,12 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				PRODUCT_BUNDLE_IDENTIFIER = com.strongrise.meetingcompanion;
 				PRODUCT_NAME = MeetingNotes;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
-/* End XCBuildConfiguration section */
-
 		BB00000000000000000000C8 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -352,6 +356,7 @@
 			};
 			name = Release;
 		};
+/* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
 		AA00000000000000000000C1 /* Build configuration list for PBXProject "MeetingCompanion" */ = {
