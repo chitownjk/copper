@@ -6,6 +6,10 @@ Hold a key, speak, and the sentence lands in the focused field. Record Zoom, Mee
 
 This README is the product page. There is no paid tier and no hosted site.
 
+![Library](docs/screenshots/library-demo.png)
+
+*A meeting on this Mac. Transcript and summary never leave unless you point them at a key you pasted.*
+
 ## Why it exists
 
 Wispr Flow is good and expensive, and it hears everything in the cloud. Meeting Companion is the opposite bet: speak on this Mac, keep the audio here.
@@ -16,6 +20,11 @@ Wispr Flow is good and expensive, and it hears everything in the cloud. Meeting 
 - **Record a meeting.** Microphone plus system audio for Zoom / Meet / Teams. Microphone only for in-person 1:1s. Timestamped notes while it runs. Searchable library. Markdown export.
 - **Transcribe and summarize on the Mac.** WhisperKit or Apple SpeechAnalyzer for the transcript. Optional Apple Intelligence summaries, or your own OpenAI / Anthropic key, or a local server (Ollama / LM Studio). Summaries are optional. A transcript still lands with nothing configured.
 - **Tag the calendar.** Companion reads Apple Calendar. Add Google or Outlook in System Settings → Internet Accounts. There is no Google login in the app. Mark Default / Record / Skip per event or series.
+
+![Calendar](docs/screenshots/calendar-demo.png)
+
+*Tag Default, Record, or Skip for this event or the whole series.*
+
 - **Ad-hoc capture.** If a physical camera turns on, Companion can ask “Record this?” It never starts from the camera alone.
 
 Virtual camera (blur, logo, standby card) exists and is parked. It is not the reason to install.
@@ -31,6 +40,18 @@ The only network the app may use, and only if you opt in:
 - a local server URL you pointed at
 
 No Companion account. No transcript upload we operate.
+
+![Summaries](docs/screenshots/settings-summaries.png)
+
+*Apple Intelligence on-device, or your own OpenAI / Anthropic key. Ollama and LM Studio work as a local server.*
+
+![Transcription](docs/screenshots/settings-transcription.png)
+
+*Whisper on this Mac, or Apple's engine if you want zero download.*
+
+![General](docs/screenshots/settings.png)
+
+*Auto-record follows Settings. Calendar tags override it for the day.*
 
 ## Requirements
 

@@ -18,3 +18,10 @@ webcamoid/
 *.mobileprovision
 .env
 .dd/
+
+# Raw screenshot captures (personal calendar / test takes).
+# Ship the *-demo and settings frames only.
+docs/screenshots/calendar.png
+docs/screenshots/library.png
+docs/screenshots/library-behind.png
+docs/screenshots/companion-window.png
