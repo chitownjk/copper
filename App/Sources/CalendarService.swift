@@ -98,11 +98,15 @@ final class CalendarService {
         let events = store.events(matching: predicate)
 
         let mapped: [UpcomingEvent] = events
-            .filter { !$0.isAllDay }
             .compactMap { ek -> UpcomingEvent? in
-                guard let id = ek.eventIdentifier,
-                      let start = ek.startDate,
-                      let endDate = ek.endDate else { return nil }
+                guard let id = ek.eventIdentifier, !id.isEmpty else { return nil }
+                guard CalendarRecordPolicy.shouldDisplay(
+                    title: ek.title,
+                    start: ek.startDate,
+                    end: ek.endDate,
+                    isAllDay: ek.isAllDay
+                ) else { return nil }
+                guard let start = ek.startDate, let endDate = ek.endDate else { return nil }
                 let link = MeetingURLDetector.detect(in: [
                     ek.title,
                     ek.location,
@@ -112,7 +116,7 @@ final class CalendarService {
                 let recurring = ek.hasRecurrenceRules || ek.isDetached
                 return UpcomingEvent(
                     id: id,
-                    title: ek.title ?? "Untitled",
+                    title: CalendarRecordPolicy.displayTitle(ek.title),
                     startDate: start,
                     endDate: endDate,
                     calendarTitle: ek.calendar?.title ?? "Calendar",

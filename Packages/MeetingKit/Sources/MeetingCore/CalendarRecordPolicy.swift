@@ -81,4 +81,36 @@ public enum CalendarRecordPolicy {
         }
         return identifier
     }
+
+    /// Empty / whitespace EventKit titles become a visible fallback so a row is never just pickers.
+    public static func displayTitle(_ raw: String?) -> String {
+        let trimmed = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Untitled event" : trimmed
+    }
+
+    /// Keep timed EventKit events. Drop all-day, missing dates, and untitled midnight-spanning leftovers
+    /// that EventKit sometimes fails to mark `isAllDay` (empty-title rhythm / holiday blocks).
+    public static func shouldDisplay(
+        title: String?,
+        start: Date?,
+        end: Date?,
+        isAllDay: Bool,
+        calendar: Calendar = .current
+    ) -> Bool {
+        if isAllDay { return false }
+        guard let start, let end, end > start else { return false }
+        let usableTitle = !(title ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if usableTitle { return true }
+        return !looksLikeAllDayLeftover(start: start, end: end, calendar: calendar)
+    }
+
+    public static func looksLikeAllDayLeftover(
+        start: Date,
+        end: Date,
+        calendar: Calendar = .current
+    ) -> Bool {
+        let parts = calendar.dateComponents([.hour, .minute, .second], from: start)
+        let midnight = (parts.hour ?? 0) == 0 && (parts.minute ?? 0) == 0 && (parts.second ?? 0) == 0
+        return midnight && end.timeIntervalSince(start) >= 20 * 3600
+    }
 }

@@ -132,46 +132,87 @@ private struct CalendarEventRow: View {
     private var store: CalendarTagStore { CalendarTagStore.shared }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(timeRange)
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 92, alignment: .leading)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(event.title)
-                        .font(.system(size: 13, weight: .medium))
-                    Text(meta)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            HStack {
-                Picker("Decision", selection: decisionBinding) {
-                    Text("Default").tag(Optional<CalendarRecordDecision>.none)
-                    Text("Record").tag(Optional.some(CalendarRecordDecision.record))
-                    Text("Skip").tag(Optional.some(CalendarRecordDecision.skip))
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 280)
-                if event.isRecurring {
-                    Picker("Grain", selection: $grain) {
-                        ForEach(CalendarTagGrain.allCases) { g in
-                            Text(g.label).tag(g)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 200)
-                }
-                Spacer()
-            }
+        VStack(alignment: .leading, spacing: 10) {
+            heading
+            controls
             Text(caption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 6)
         .opacity(event.hasEnded ? 0.55 : 1)
+    }
+
+    /// Time keeps its full width so "11:30 AM–12:00 PM" never ellipsizes mid-digit.
+    /// Title takes the rest and wraps to two lines; if the row is too narrow, stack.
+    private var heading: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                timeLabel
+                titleBlock
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                timeLabel
+                titleBlock
+            }
+        }
+    }
+
+    private var timeLabel: some View {
+        Text(timeRange)
+            .font(.subheadline.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(2)
+            .accessibilityLabel("Time")
+            .accessibilityValue(timeRange)
+    }
+
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(CalendarRecordPolicy.displayTitle(event.title))
+                .font(.system(size: 13, weight: .medium))
+                .lineLimit(2)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(meta)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Full-width stacked segments. Hidden labels so "Grain" cannot wrap to "Grai" / "n".
+    private var controls: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Picker("Decision", selection: decisionBinding) {
+                Text("Default").tag(Optional<CalendarRecordDecision>.none)
+                Text("Record").tag(Optional.some(CalendarRecordDecision.record))
+                Text("Skip").tag(Optional.some(CalendarRecordDecision.skip))
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.regular)
+            .frame(maxWidth: .infinity)
+
+            if event.isRecurring {
+                Picker("Scope", selection: $grain) {
+                    ForEach(CalendarTagGrain.allCases) { g in
+                        Text(g.label).tag(g)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .controlSize(.regular)
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private var decisionBinding: Binding<CalendarRecordDecision?> {

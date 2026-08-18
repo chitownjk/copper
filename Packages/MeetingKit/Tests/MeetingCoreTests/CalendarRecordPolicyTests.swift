@@ -51,4 +51,37 @@ final class CalendarRecordPolicyTests: XCTestCase {
             "BASE-ID"
         )
     }
+
+    func testDisplayTitleFallsBackWhenEmpty() {
+        XCTAssertEqual(CalendarRecordPolicy.displayTitle(nil), "Untitled event")
+        XCTAssertEqual(CalendarRecordPolicy.displayTitle("   "), "Untitled event")
+        XCTAssertEqual(CalendarRecordPolicy.displayTitle("Driving school review"), "Driving school review")
+    }
+
+    func testShouldDisplayHidesAllDayAndMissingDates() {
+        let start = Date(timeIntervalSince1970: 1_787_068_800) // 2026-08-18 16:00 UTC
+        let end = start.addingTimeInterval(3600)
+        XCTAssertFalse(CalendarRecordPolicy.shouldDisplay(title: "Holiday", start: start, end: end, isAllDay: true))
+        XCTAssertFalse(CalendarRecordPolicy.shouldDisplay(title: "X", start: nil, end: end, isAllDay: false))
+        XCTAssertFalse(CalendarRecordPolicy.shouldDisplay(title: "X", start: start, end: nil, isAllDay: false))
+        XCTAssertFalse(CalendarRecordPolicy.shouldDisplay(title: "X", start: start, end: start, isAllDay: false))
+        XCTAssertTrue(CalendarRecordPolicy.shouldDisplay(title: "Driving school review", start: start, end: end, isAllDay: false))
+    }
+
+    func testShouldDisplayHidesUntitledMidnightLeftover() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = Date(timeIntervalSince1970: 1_787_011_200) // 2026-08-18 00:00 UTC
+        let end = start.addingTimeInterval(24 * 3600)
+        XCTAssertFalse(CalendarRecordPolicy.shouldDisplay(title: "", start: start, end: end, isAllDay: false, calendar: cal))
+        XCTAssertFalse(CalendarRecordPolicy.shouldDisplay(title: "  ", start: start, end: end, isAllDay: false, calendar: cal))
+    }
+
+    func testShouldDisplayKeepsUntitledTimedEvent() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = Date(timeIntervalSince1970: 1_787_011_200 + 11 * 3600 + 30 * 60) // 11:30 UTC
+        let end = start.addingTimeInterval(30 * 60)
+        XCTAssertTrue(CalendarRecordPolicy.shouldDisplay(title: "", start: start, end: end, isAllDay: false, calendar: cal))
+    }
 }
