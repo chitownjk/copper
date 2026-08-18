@@ -6,6 +6,10 @@ Hold a key, speak, and the sentence lands in the focused field. Record Zoom, Mee
 
 This README is the product page. There is no paid tier and no hosted site.
 
+![Hold to dictate](docs/screenshots/hero.gif)
+
+*Hold Control-Option, speak, release. The sentence lands in Notes.*
+
 ![Library](docs/screenshots/library-demo.png)
 
 *A meeting on this Mac. Transcript and summary never leave unless you point them at a key you pasted.*
