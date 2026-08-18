@@ -26,7 +26,7 @@ final class MainWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Meeting Companion"
+        window.title = "Copper"
         window.isReleasedWhenClosed = false
         window.center()
         window.contentView = NSHostingView(rootView: MainWindowView().environment(appState))

@@ -43,7 +43,7 @@ struct MeetingNotesApp: App {
                     }
                 }
                 Divider()
-                Button("Open Meeting Companion") {
+                Button("Open Copper") {
                     appState.mainWindow.show()
                 }
                 .keyboardShortcut("l")

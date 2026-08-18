@@ -29,7 +29,7 @@ final class OnboardingWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Meeting Companion"
+        window.title = "Copper"
         window.isReleasedWhenClosed = false
         window.center()
         window.contentView = NSHostingView(rootView: OnboardingView(checks: checks))

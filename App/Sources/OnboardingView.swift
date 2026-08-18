@@ -26,7 +26,7 @@ struct OnboardingView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Meeting Companion")
+            Text("Copper")
                 .font(.title2.weight(.semibold))
             Text("Start Recording from the library or the menu-bar waveform. Recordings stay on this Mac. Grant the permissions below so Companion can transcribe.")
                 .font(.callout)

@@ -77,13 +77,13 @@ final class CameraDeviceSource: NSObject, CMIOExtensionDeviceSource {
             validFrameDurations: nil
         )
         streamSource = CameraStreamSource(
-            localizedName: "Meeting Companion Camera Stream",
+            localizedName: "Copper Camera Stream",
             streamID: FixedID.stream,
             streamFormat: format,
             device: device
         )
         sinkStreamSource = CameraSinkStreamSource(
-            localizedName: "Meeting Companion Camera Sink",
+            localizedName: "Copper Camera Sink",
             streamID: FixedID.sinkStream,
             streamFormat: format,
             device: device
@@ -107,7 +107,7 @@ final class CameraDeviceSource: NSObject, CMIOExtensionDeviceSource {
             deviceProperties.transportType = kIOAudioDeviceTransportTypeVirtual
         }
         if properties.contains(.deviceModel) {
-            deviceProperties.model = "Meeting Companion Camera"
+            deviceProperties.model = "Copper Camera"
         }
         return deviceProperties
     }

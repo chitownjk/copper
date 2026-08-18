@@ -53,7 +53,7 @@ struct MenuBarView: View {
 
             Divider()
 
-            Button("Open Meeting Companion") {
+            Button("Open Copper") {
                 appState.mainWindow.show()
             }
 

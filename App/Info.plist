@@ -7,26 +7,26 @@
     <key>CFBundleIdentifier</key>
     <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
     <key>CFBundleName</key>
-    <string>Meeting Companion</string>
+    <string>Copper</string>
     <key>CFBundleDisplayName</key>
-    <string>Meeting Companion</string>
+    <string>Copper</string>
     <key>CFBundleIconName</key>
     <string>AppIcon</string>
     <key>CFBundleExecutable</key>
-    <string>MeetingNotes</string>
+    <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
+    <string>0.1.1</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>2</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSCameraUsageDescription</key>
-    <string>Meeting Companion connects to its own virtual camera to send it video, and will capture your camera for video effects.</string>
+    <string>Copper connects to its own virtual camera to send it video, and will capture your camera for video effects.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Meeting Companion uses the microphone to record meetings and to dictate into other apps. Audio stays on this Mac.</string>
+    <string>Copper uses the microphone to record meetings and to dictate into other apps. Audio stays on this Mac.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
-    <string>Meeting Companion reads your calendar to show upcoming meetings and offer one-tap recording.</string>
+    <string>Copper reads your calendar to show upcoming meetings and offer one-tap recording.</string>
     <key>NSCalendarsUsageDescription</key>
-    <string>Meeting Companion reads your calendar to show upcoming meetings and offer one-tap recording.</string>
+    <string>Copper reads your calendar to show upcoming meetings and offer one-tap recording.</string>
 </dict>
 </plist>

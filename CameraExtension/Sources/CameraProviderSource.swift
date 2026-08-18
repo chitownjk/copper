@@ -12,7 +12,7 @@ final class CameraProviderSource: NSObject, CMIOExtensionProviderSource {
     init(clientQueue: DispatchQueue?) {
         super.init()
         provider = CMIOExtensionProvider(source: self, clientQueue: clientQueue)
-        deviceSource = CameraDeviceSource(localizedName: "Meeting Companion Camera")
+        deviceSource = CameraDeviceSource(localizedName: "Copper Camera")
         do {
             try provider.addDevice(deviceSource.device)
         } catch {
@@ -35,10 +35,10 @@ final class CameraProviderSource: NSObject, CMIOExtensionProviderSource {
     func providerProperties(forProperties properties: Set<CMIOExtensionProperty>) throws -> CMIOExtensionProviderProperties {
         let providerProperties = CMIOExtensionProviderProperties(dictionary: [:])
         if properties.contains(.providerManufacturer) {
-            providerProperties.manufacturer = "Meeting Companion"
+            providerProperties.manufacturer = "Copper"
         }
         if properties.contains(.providerName) {
-            providerProperties.name = "Meeting Companion Camera Provider"
+            providerProperties.name = "Copper Camera Provider"
         }
         return providerProperties
     }

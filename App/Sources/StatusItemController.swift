@@ -37,7 +37,7 @@ final class StatusItemController: NSObject {
         item.button?.target = self
         item.button?.action = #selector(togglePopover)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        item.button?.toolTip = "Meeting Companion"
+        item.button?.toolTip = "Copper"
 
         let root = MenuBarView()
             .environment(appState)
@@ -111,7 +111,7 @@ final class StatusItemController: NSObject {
         }
         let image = NSImage(
             systemSymbolName: appState.menuBarSymbol,
-            accessibilityDescription: "Meeting Companion"
+            accessibilityDescription: "Copper"
         )
         image?.isTemplate = true
         return image
@@ -187,7 +187,7 @@ final class StatusItemController: NSObject {
             addItem(menu, "Go Live", #selector(dockGoLive))
         }
         menu.addItem(.separator())
-        addItem(menu, "Open Meeting Companion", #selector(dockOpenMain))
+        addItem(menu, "Open Copper", #selector(dockOpenMain))
         addItem(menu, "Settings…", #selector(dockOpenSettings))
         return menu
     }

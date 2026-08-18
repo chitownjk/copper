@@ -23,7 +23,7 @@ final class AppState {
     let cameraUse = CameraUseMonitor()
     @ObservationIgnored private(set) lazy var mainWindow = MainWindowController(appState: self)
 
-    /// True when any client has "Meeting Companion Camera" open, including
+    /// True when any client has "Copper Camera" open, including
     /// the extension's test-card fallback when we have not hit Go Live.
     var virtualCameraClaimed = false
 

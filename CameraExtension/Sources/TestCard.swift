@@ -31,7 +31,7 @@ enum TestCard {
         context.fill(CGRect(x: 0, y: 0, width: w, height: h))
 
         drawText("Camera off", at: CGPoint(x: 80, y: h / 2 + 20), size: 72, color: (0.77, 0.52, 0.35), in: context)
-        drawText("Meeting Companion", at: CGPoint(x: 80, y: h / 2 - 50), size: 36, color: (0.85, 0.85, 0.86), in: context)
+        drawText("Copper", at: CGPoint(x: 80, y: h / 2 - 50), size: 36, color: (0.85, 0.85, 0.86), in: context)
         _ = frameIndex
     }
 

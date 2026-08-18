@@ -14,7 +14,7 @@ final class CameraSinkClient {
     static let deviceUID = "6E7A3B2C-9F41-4C8A-B1D5-2A6C0E9F7D31"
 
     /// True when a meeting app (Meet/Zoom/Teams/Photo Booth) is *reading*
-    /// Meeting Companion Camera. Our own sink writer does not count.
+    /// Copper Camera. Our own sink writer does not count.
     ///
     /// `kCMIODevicePropertyDeviceIsRunningSomewhere` is sticky on this
     /// extension (stays 1 after the sink starts, even after hangup) and
@@ -68,7 +68,7 @@ final class CameraSinkClient {
         var errorDescription: String? {
             switch self {
             case .deviceNotFound:
-                return "Meeting Companion Camera not found (is the extension installed and approved?)"
+                return "Copper Camera not found (is the extension installed and approved?)"
             case .sinkStreamNotFound:
                 return "The camera has no sink stream (older extension version still active?)"
             case .queueUnavailable(let status):
