@@ -1,7 +1,7 @@
 #!/usr/bin/swift
-// E5.1 acceptance probe: captures ~1.5 s from "Meeting Companion Camera" and
-// verifies frames arrive, carry a non-uniform image (the color bars), and
-// change over time (the moving block / frame counter). Exit 0 = pass.
+// E5.1 acceptance probe: captures ~1.5 s from "Copper Camera" and
+// verifies frames arrive and carry a non-uniform image. The current safe idle
+// card is intentionally static, so frame-to-frame changes are not required.
 import AVFoundation
 import CoreVideo
 
@@ -51,8 +51,9 @@ if status == .notDetermined {
 let discovery = AVCaptureDevice.DiscoverySession(
     deviceTypes: [.external], mediaType: .video, position: .unspecified
 )
-guard let device = discovery.devices.first(where: { $0.localizedName == "Meeting Companion Camera" }) else {
-    print("FAIL: Meeting Companion Camera not found"); exit(1)
+let copperUID = "6E7A3B2C-9F41-4C8A-B1D5-2A6C0E9F7D31"
+guard let device = discovery.devices.first(where: { $0.uniqueID == copperUID }) else {
+    print("FAIL: Copper Camera not found"); exit(1)
 }
 
 let session = AVCaptureSession()
@@ -71,9 +72,9 @@ session.stopRunning()
 
 let unique = Set(collector.digests).count
 print("frames=\(collector.digests.count) unique=\(unique) uniform=\(collector.uniform)")
-if collector.digests.count >= 20, unique >= 10, !collector.uniform {
-    print("PASS: live, patterned frames from the extension")
+if collector.digests.count >= 20, !collector.uniform {
+    print("PASS: non-blank frames from the extension")
     exit(0)
 }
-print("FAIL: stream is missing, frozen, or blank")
+print("FAIL: stream is missing or blank")
 exit(1)

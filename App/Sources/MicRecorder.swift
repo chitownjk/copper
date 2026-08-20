@@ -3,7 +3,7 @@ import AVFoundation
 
 final class MicRecorder {
     private let engine = AVAudioEngine()
-    private let file: AVAudioFile
+    private var file: AVAudioFile?
 
     init(outputURL: URL) throws {
         let input = engine.inputNode
@@ -25,7 +25,7 @@ final class MicRecorder {
             interleaved: format.isInterleaved
         )
         input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
-            try? self?.file.write(from: buffer)
+            try? self?.file?.write(from: buffer)
         }
     }
 
@@ -37,5 +37,9 @@ final class MicRecorder {
     func stop() {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
+        // Drop the writer so AVAudioFile finalizes the WAV header. If we
+        // leave it open, mix() reads length 0 and throws "no audio" even
+        // when 100 MB of PCM is on disk (instant / mic-only meetings).
+        file = nil
     }
 }

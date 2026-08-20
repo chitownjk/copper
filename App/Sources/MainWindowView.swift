@@ -19,30 +19,54 @@ struct MainWindowView: View {
     var body: some View {
         VStack(spacing: 0) {
             sessionBanner
-            NavigationSplitView {
-                List(selection: $section) {
-                    Label("Calendar", systemImage: "calendar")
-                        .tag(MainWindowSection.calendar)
-                    Label("Library", systemImage: "waveform")
-                        .tag(MainWindowSection.library)
+            HSplitView {
+                navColumn
+                    .frame(minWidth: 150, idealWidth: 168, maxWidth: 188)
+                Group {
+                    switch section {
+                    case .calendar:
+                        CalendarRecordListView()
+                    case .library:
+                        LibraryView(model: libraryModel)
+                    }
                 }
-                .listStyle(.sidebar)
-                .navigationSplitViewColumnWidth(min: 150, ideal: 168, max: 200)
-            } detail: {
-                switch section {
-                case .calendar:
-                    CalendarRecordListView()
-                case .library:
-                    LibraryView(model: libraryModel)
-                }
+                .frame(minWidth: 640, maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .frame(minWidth: 900, minHeight: 560)
+        .background(Color(nsColor: .windowBackgroundColor))
         .tint(Brand.accent)
         .onAppear { consumePendingSelection() }
         .onChange(of: appState.pendingLibraryMeetingId) { _, _ in
             consumePendingSelection()
         }
+    }
+
+    private var navColumn: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            navRow("Calendar", systemImage: "calendar", section: .calendar)
+            navRow("Library", systemImage: "waveform", section: .library)
+            Spacer(minLength: 0)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private func navRow(_ title: String, systemImage: String, section: MainWindowSection) -> some View {
+        Button {
+            self.section = section
+        } label: {
+            Label(title, systemImage: systemImage)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(
+                    self.section == section ? Brand.accent.opacity(0.22) : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     private func consumePendingSelection() {
@@ -60,36 +84,41 @@ struct MainWindowView: View {
         let recording = appState.status == .recording
         let live = appState.camera.isLive
         let claimed = appState.virtualCameraClaimed && !live
-        if recording || live || claimed {
-            HStack(spacing: 12) {
-                if recording {
-                    Text("● Recording")
-                        .foregroundStyle(.red)
-                    Button("Stop Recording") {
-                        Task { await appState.stopRecording() }
-                    }
+        HStack(spacing: 12) {
+            if recording {
+                Text("● Recording")
+                    .foregroundStyle(.red)
+                Button("Stop Recording") {
+                    Task { await appState.stopRecording() }
                 }
-                if live {
-                    Text("● Camera Live")
-                    Button("Stop Virtual Camera") {
-                        appState.camera.stopLive()
-                    }
-                } else {
-                    if claimed {
-                        Text("Virtual camera in use (test card)")
-                            .foregroundStyle(.secondary)
-                    }
-                    Button("Go Live") {
-                        Task { await appState.camera.goLive() }
-                    }
-                    .buttonStyle(.borderedProminent)
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+            } else {
+                Button("Record now") {
+                    Task { await appState.startRecording(.instant) }
                 }
-                Spacer()
+                .buttonStyle(.borderedProminent)
+                .help("Start a walk-in meeting. No calendar needed. Microphone only.")
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(.bar)
+            if live {
+                Text("● Camera Live")
+                Button("Stop Virtual Camera") {
+                    appState.camera.stopLive()
+                }
+            } else {
+                if claimed {
+                    Text("Virtual camera in use (test card)")
+                        .foregroundStyle(.secondary)
+                }
+                Button("Go Live") {
+                    Task { await appState.camera.goLive() }
+                }
+            }
+            Spacer()
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.bar)
     }
 }
 
@@ -316,7 +345,7 @@ private struct CameraPreviewView: NSViewRepresentable {
         @available(*, unavailable)
         required init?(coder: NSCoder) { fatalError() }
 
-        nonisolated func enqueue(_ sampleBuffer: CMSampleBuffer) {
+        func enqueue(_ sampleBuffer: CMSampleBuffer) {
             let renderer = displayLayer.sampleBufferRenderer
             if renderer.status == .failed {
                 renderer.flush()

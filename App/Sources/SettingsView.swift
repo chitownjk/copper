@@ -640,7 +640,7 @@ struct StorageSettingsTab: View {
     private var form: some View {
         Form {
             Section("Recorded audio") {
-                Text("Audio is the expensive part. A 45-minute meeting can be several gigabytes. Transcripts, notes, and summaries stay; only the WAV files are swept.")
+                Text("Raw tracks are deleted after the mix checks out. What’s kept is the mixed recording — about 100 MB per hour. Retention applies only to that mix. Transcripts, notes, and summaries stay.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 

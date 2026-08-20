@@ -16,12 +16,22 @@ struct CalendarRecordListView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Calendar")
-                .font(.title2.weight(.semibold))
-            Text("Today and the next 7 days, from Apple Calendar. Default follows Settings. Record / Skip is daily work. This time beats this series.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Calendar")
+                    .font(.title2.weight(.semibold))
+                Text("Today and the next 7 days, from Apple Calendar. Default follows Settings. Record / Skip is daily work. This time beats this series.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 12)
+            if appState.status != .recording {
+                Button("Record now") {
+                    Task { await appState.startRecording(.instant) }
+                }
+                .buttonStyle(.borderedProminent)
+                .help("Walk-in meeting. No calendar event required.")
+            }
         }
         .padding(16)
     }

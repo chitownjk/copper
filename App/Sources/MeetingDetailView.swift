@@ -23,6 +23,7 @@ struct MeetingDetailView: View {
     @State private var tab: DetailTab = .summary
     @State private var titleDraft: String = ""
     @State private var titleEditing: Bool = false
+    @State private var player = MeetingAudioPlayer()
 
     private var canRetry: Bool {
         _ = model.audioRevision
@@ -36,6 +37,7 @@ struct MeetingDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            playerBar
             Divider()
             content
         }
@@ -43,27 +45,82 @@ struct MeetingDetailView: View {
             titleDraft = meeting.title
             titleEditing = false
             tab = .summary
+            reloadPlayer()
+        }
+        .onChange(of: model.audioRevision) { _, _ in
+            reloadPlayer()
+        }
+        .onChange(of: meeting.status) { _, _ in
+            // Mix lands during .mixing / .transcribing. The play button
+            // appears as soon as mixed.wav exists, but the player was
+            // loaded earlier with nothing — click no-ops until we reload.
+            reloadPlayer()
         }
         .onAppear {
             titleDraft = meeting.title
+            reloadPlayer()
+        }
+        .onDisappear {
+            player.stop()
         }
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 8) {
-                if titleEditing {
-                    TextField("Title", text: $titleDraft)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit { commitTitle() }
-                } else {
-                    Text(meeting.title)
-                        .font(.title2.weight(.semibold))
-                        .onTapGesture(count: 2) {
-                            titleDraft = meeting.title
-                            titleEditing = true
-                        }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Group {
+                    if titleEditing {
+                        TextField("Title", text: $titleDraft)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit { commitTitle() }
+                    } else {
+                        Text(meeting.title)
+                            .font(.title2.weight(.semibold))
+                            .lineLimit(2)
+                            .truncationMode(.tail)
+                            .onTapGesture(count: 2) {
+                                titleDraft = meeting.title
+                                titleEditing = true
+                            }
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+
+                if canRetry {
+                    Button("Retry") {
+                        model.retry(meeting)
+                    }
+                    .disabled(model.isRetrying)
+                    if model.isRetrying {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+
+                Menu {
+                    Button("Export as Markdown…") { exportMarkdown() }
+                    Button("Reveal Recording in Finder") {
+                        NSWorkspace.shared.open(URL(fileURLWithPath: meeting.audioDir))
+                    }
+                    if model.meetingHasAudio(meeting) {
+                        Button("Delete Audio") {
+                            model.deleteAudio(meeting)
+                        }
+                    }
+                    Divider()
+                    Button("Delete Meeting", role: .destructive) {
+                        model.confirmAndDelete(meeting)
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .menuStyle(.borderlessButton)
+                .frame(width: 32)
+                .layoutPriority(2)
+            }
+
+            HStack(alignment: .center, spacing: 12) {
                 HStack(spacing: 8) {
                     Text(formatDate(meeting.startedAt))
                     if let ended = meeting.endedAt {
@@ -76,52 +133,81 @@ struct MeetingDetailView: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            }
+                .lineLimit(1)
+                .layoutPriority(1)
 
-            Spacer()
+                Spacer(minLength: 8)
 
-            Picker("", selection: $tab) {
-                ForEach(DetailTab.allCases) { t in
-                    Text(t.label).tag(t)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 280)
-            .tint(Brand.accent)
-
-            if canRetry {
-                Button("Retry") {
-                    model.retry(meeting)
-                }
-                .disabled(model.isRetrying)
-                if model.isRetrying {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-            }
-
-            Menu {
-                Button("Export as Markdown…") { exportMarkdown() }
-                Button("Reveal Recording in Finder") {
-                    NSWorkspace.shared.open(URL(fileURLWithPath: meeting.audioDir))
-                }
-                if model.meetingHasAudio(meeting) {
-                    Button("Delete Audio") {
-                        model.deleteAudio(meeting)
+                Picker("", selection: $tab) {
+                    ForEach(DetailTab.allCases) { t in
+                        Text(t.label).tag(t)
                     }
                 }
-                Divider()
-                Button("Delete Meeting", role: .destructive) {
-                    model.confirmAndDelete(meeting)
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 280)
+                .fixedSize(horizontal: true, vertical: false)
+                .tint(Brand.accent)
+                .layoutPriority(2)
             }
-            .menuStyle(.borderlessButton)
-            .frame(width: 32)
         }
         .padding(.horizontal, 24)
-        .padding(.vertical, 20)
+        .padding(.vertical, 16)
+    }
+
+    /// Slim listen-back bar, visible on every tab. mixed.wav only — stems
+    /// are never the playback source, even if they still exist.
+    @ViewBuilder
+    private var playerBar: some View {
+        if hasVerifiedMix {
+            HStack(spacing: 12) {
+                Button {
+                    if !player.isLoaded { reloadPlayer() }
+                    player.toggle()
+                } label: {
+                    Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .frame(width: 22)
+                }
+                .buttonStyle(.plain)
+                .help(player.isPlaying ? "Pause" : "Play")
+
+                Slider(
+                    value: Binding(
+                        get: { player.currentTime },
+                        set: { player.seek(to: $0) }
+                    ),
+                    in: 0...max(player.duration, 0.001)
+                )
+
+                Text("\(formatTimestampMs(Int(player.currentTime * 1000))) · \(formatTimestampMs(Int(player.duration * 1000)))")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 12)
+        } else if meeting.statusEnum == .ready {
+            Text("Audio deleted")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
+        }
+    }
+
+    private var hasVerifiedMix: Bool {
+        _ = model.audioRevision
+        return RecordingArtifacts.isMixVerified(in: URL(fileURLWithPath: meeting.audioDir))
+    }
+
+    private func reloadPlayer() {
+        let dir = URL(fileURLWithPath: meeting.audioDir)
+        if RecordingArtifacts.isMixVerified(in: dir) {
+            player.load(url: RecordingArtifacts.mixedURL(in: dir))
+        } else {
+            player.stop()
+        }
     }
 
     @ViewBuilder
@@ -201,15 +287,35 @@ struct MeetingDetailView: View {
             } else {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(model.detailNotes, id: \.id) { note in
-                        HStack(alignment: .top, spacing: 8) {
-                            Text(formatTimestampMs(note.tsMs))
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 70, alignment: .leading)
-                            Text(String(repeating: "  ", count: max(0, note.indentLevel)) + "• \(note.text)")
-                                .font(.system(size: 13))
-                                .textSelection(.enabled)
+                        let currentMs = Int(player.currentTime * 1000)
+                        let highlighted = hasVerifiedMix && currentMs >= note.tsMs && currentMs < note.tsMs + 3000
+                        Button {
+                            guard hasVerifiedMix else { return }
+                            player.seek(to: Double(note.tsMs) / 1000)
+                            if !player.isPlaying { player.play() }
+                        } label: {
+                            HStack(alignment: .top, spacing: 8) {
+                                Text(formatTimestampMs(note.tsMs))
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 70, alignment: .leading)
+                                Text(String(repeating: "  ", count: max(0, note.indentLevel)) + "• \(note.text)")
+                                    .font(.system(size: 13, weight: highlighted ? .medium : .regular))
+                                    .multilineTextAlignment(.leading)
+                                    .textSelection(.enabled)
+                            }
+                            .padding(.vertical, 3)
+                            .padding(.horizontal, 6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                highlighted
+                                    ? Brand.accent.opacity(0.16)
+                                    : Color.clear,
+                                in: RoundedRectangle(cornerRadius: 4)
+                            )
                         }
+                        .buttonStyle(.plain)
+                        .disabled(!hasVerifiedMix)
                     }
                 }
                 .padding(16)
@@ -238,15 +344,31 @@ struct MeetingDetailView: View {
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(model.detailSegments, id: \.id) { seg in
-                        HStack(alignment: .top, spacing: 8) {
-                            Text(formatTimestampMs(seg.startMs))
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 70, alignment: .leading)
-                            Text(seg.text)
-                                .font(.system(size: 13))
-                                .textSelection(.enabled)
+                        let currentMs = Int(player.currentTime * 1000)
+                        let highlighted = currentMs >= seg.startMs && currentMs < seg.endMs
+                        Button {
+                            player.seek(to: Double(seg.startMs) / 1000)
+                        } label: {
+                            HStack(alignment: .top, spacing: 8) {
+                                Text(formatTimestampMs(seg.startMs))
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 70, alignment: .leading)
+                                Text(seg.text)
+                                    .font(.system(size: 13, weight: highlighted ? .medium : .regular))
+                                    .multilineTextAlignment(.leading)
+                            }
+                            .padding(.vertical, 3)
+                            .padding(.horizontal, 6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                highlighted
+                                    ? Brand.accent.opacity(0.16)
+                                    : Color.clear,
+                                in: RoundedRectangle(cornerRadius: 4)
+                            )
                         }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(16)

@@ -2,6 +2,8 @@ import SwiftUI
 
 struct OnboardingView: View {
     @Bindable var checks: OnboardingChecks
+    let onFinish: () -> Void
+    let onSkip: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,7 +30,7 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Copper")
                 .font(.title2.weight(.semibold))
-            Text("Start Recording from the library or the menu-bar waveform. Recordings stay on this Mac. Grant the permissions below so Companion can transcribe.")
+            Text("Start recording from the library or menu-bar waveform. Recordings stay on this Mac. Required checks unlock recording and dictation; camera, calendar, and summaries are optional.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
@@ -39,16 +41,23 @@ struct OnboardingView: View {
     private var footer: some View {
         HStack {
             if checks.allPass {
-                Label("All checks passed", systemImage: "checkmark.circle.fill")
+                Label("Required checks passed", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                     .font(.callout)
             } else {
-                Text("\(checks.items.filter { $0.status == .ok }.count) of \(checks.items.count) ready")
+                let required = checks.items.filter(\.isRequired)
+                Text("\(required.filter { $0.status == .ok }.count) of \(required.count) required checks ready")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
             Spacer()
             Button("Re-check") { checks.refresh() }
+            if checks.allPass {
+                Button("Finish") { onFinish() }
+                    .buttonStyle(.borderedProminent)
+            } else {
+                Button("Skip for now") { onSkip() }
+            }
         }
         .padding(12)
     }
@@ -66,6 +75,9 @@ private struct CheckRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
                     .font(.system(size: 13, weight: .medium))
+                Text(item.isRequired ? "Required" : "Optional")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(item.isRequired ? Brand.accent : .secondary)
                 Text(item.detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -99,10 +111,13 @@ private struct CheckRow: View {
     private func actionLabel(_ action: CheckAction) -> String {
         switch action {
         case .requestMic:                  return "Grant"
+        case .requestCamera:               return "Grant"
+        case .requestAccessibility:        return "Open Settings"
+        case .requestSpeech:               return "Grant"
         case .openScreenRecordingSettings: return "Open Settings"
         case .requestCalendar:             return "Grant"
         case .openInternetAccounts:        return "Internet Accounts"
-        case .openInstallInstructions:     return "Install Help"
+        case .installCameraExtension:      return "Install / Repair"
         case .downloadSpeechModel:         return "Download"
         }
     }

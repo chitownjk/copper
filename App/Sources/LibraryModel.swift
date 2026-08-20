@@ -225,9 +225,14 @@ final class LibraryModel {
                 for try await meetings in observation.values(in: Database.shared) {
                     await MainActor.run {
                         guard let self else { return }
+                        let previousStatus = self.allMeetings.first(where: { $0.id == self.selectedMeetingId })?.status
                         self.allMeetings = meetings
                         if let id = self.selectedMeetingId {
                             self.loadDetail(for: id)
+                            let newStatus = meetings.first(where: { $0.id == id })?.status
+                            if previousStatus != newStatus {
+                                self.audioRevision += 1
+                            }
                         }
                     }
                 }

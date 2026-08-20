@@ -15,18 +15,26 @@
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.1</string>
+    <string>0.1.2</string>
     <key>CFBundleVersion</key>
-    <string>2</string>
+    <string>3</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSCameraUsageDescription</key>
     <string>Copper connects to its own virtual camera to send it video, and will capture your camera for video effects.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Copper uses the microphone to record meetings and to dictate into other apps. Audio stays on this Mac.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Copper uses Apple Speech to transcribe recordings locally when you select that transcription engine.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
     <string>Copper reads your calendar to show upcoming meetings and offer one-tap recording.</string>
     <key>NSCalendarsUsageDescription</key>
     <string>Copper reads your calendar to show upcoming meetings and offer one-tap recording.</string>
+    <key>SUFeedURL</key>
+    <string>https://github.com/chitownjk/copper/releases/latest/download/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>tYvX2oYdS8onuXUzTl5c6ZQrTnXPH9TARd3Rd7JNFqM=</string>
+    <key>SUEnableAutomaticChecks</key>
+    <false/>
 </dict>
 </plist>

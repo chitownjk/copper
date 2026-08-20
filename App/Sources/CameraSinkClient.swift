@@ -13,6 +13,10 @@ final class CameraSinkClient {
     /// Must match `FixedID.device` in the extension.
     static let deviceUID = "6E7A3B2C-9F41-4C8A-B1D5-2A6C0E9F7D31"
 
+    static var isVirtualCameraInstalled: Bool {
+        findDevice(uid: deviceUID) != nil
+    }
+
     /// True when a meeting app (Meet/Zoom/Teams/Photo Booth) is *reading*
     /// Copper Camera. Our own sink writer does not count.
     ///
@@ -20,11 +24,11 @@ final class CameraSinkClient {
     /// extension (stays 1 after the sink starts, even after hangup) and
     /// treats the sink as a client, so it cannot drive the in-call HUD.
     static func isVirtualCameraRunningSomewhere() -> Bool {
-        // Do not use DeviceIsRunningSomewhere / beingRead while we are the
-        // sink — that stays true after hangup and holds the physical camera.
-        if MeetingCallDetector.isInACall() { return true }
-        guard let device = AVCaptureDevice(uniqueID: deviceUID) else { return false }
-        return device.isInUseByAnotherApplication
+        // A Meet/Zoom window only proves that a call exists; it does not prove
+        // Copper Camera is selected. Read the virtual camera's source stream
+        // directly so opening a call on the built-in camera cannot auto-start
+        // Copper's physical-camera capture.
+        isVirtualCameraBeingRead()
     }
 
     /// True when a capture client (Meet/Zoom) is reading the source stream.

@@ -29,7 +29,8 @@ public enum ChunkedSummarization {
         let body = compose(transcript: request.transcript, notes: request.notes)
 
         if body.count <= contextCharacterBudget {
-            return try await generator.generate(request.template.systemPrompt, body)
+            let single = try await generator.generate(request.template.systemPrompt, body)
+            return SummarySanitizer.clean(single)
         }
 
         let chunks = split(body, maxCharacters: contextCharacterBudget)
@@ -37,11 +38,16 @@ public enum ChunkedSummarization {
         partials.reserveCapacity(chunks.count)
 
         for (index, chunk) in chunks.enumerated() {
-            let partial = try await generator.generate(
+            let raw = try await generator.generate(
                 mapPrompt(part: index + 1, of: chunks.count),
                 chunk
             )
-            partials.append("## Part \(index + 1) of \(chunks.count)\n\(partial)")
+            let partial = SummarySanitizer.clean(raw)
+            // Do not label these "## Part N of M". On-device models copy that
+            // heading into the user-visible summary and skip the merge.
+            partials.append(
+                "<extract n=\"\(index + 1)\" of=\"\(chunks.count)\">\n\(partial)\n</extract>"
+            )
         }
 
         let joined = partials.joined(separator: "\n\n")
@@ -56,7 +62,15 @@ public enum ChunkedSummarization {
             )
         }
 
-        return try await generator.generate(reducePrompt(request.template), joined)
+        var merged = SummarySanitizer.clean(
+            try await generator.generate(reducePrompt(request.template), joined)
+        )
+        if SummarySanitizer.looksUnmerged(merged) {
+            merged = SummarySanitizer.clean(
+                try await generator.generate(reducePrompt(request.template), merged)
+            )
+        }
+        return merged
     }
 
     // MARK: - Internals
@@ -111,6 +125,10 @@ public enum ChunkedSummarization {
         and any quote worth keeping verbatim. Preserve timestamps on anything \
         time-sensitive. Do not write an introduction or a conclusion — this is \
         an intermediate artifact, not a finished summary.
+
+        Do not use section headings (no TL;DR, Key Decisions, Action Items, \
+        or "Part \(part) of \(total)"). Unlabeled bullets only. Never repeat \
+        a word back-to-back.
         """
     }
 
@@ -123,6 +141,11 @@ public enum ChunkedSummarization {
         a single summary in the format above. Deduplicate items that appear in \
         more than one section, and resolve contradictions in favour of the later \
         section — the meeting may have changed its mind.
+
+        Output exactly one summary. Never emit "Part 1 of N" headings. Never \
+        write more than one TL;DR. If the input already looks like finished \
+        summaries, merge them — do not concatenate them. Quotes are one \
+        sentence each; never repeat a word.
         """
     }
 }

@@ -2,13 +2,13 @@
 
 **Free local dictation for Mac. Private meeting notes in the same app.**
 
-Hold a key, speak, and the sentence lands in the focused field. Record Zoom, Meet, or the room. Audio and transcripts stay on this Mac. No account, no bot in the call, no word cap.
+Hold a key, speak, and the audio stays on this Mac. Record a meeting from the microphone, or microphone plus system audio. No account, no bot in the call, no word cap.
 
 This README is the product page. There is no paid tier and no hosted site.
 
 ![Hold to dictate](docs/screenshots/hero.gif)
 
-*Hold Control-Option, speak, release. The sentence lands in Notes.*
+*Hold Control-Option, speak, release. This clip is Notes on this Mac.*
 
 ![Library](docs/screenshots/library-demo.png)
 
@@ -20,9 +20,9 @@ Wispr Flow is good and expensive, and it hears everything in the cloud. Copper i
 
 ## What it does
 
-- **Dictate anywhere.** Hold or double-tap a chord (Control-Option by default; you can rebind it). On-device speech to text, then the words paste into Mail, a browser, Notes, wherever you were typing.
-- **Record a meeting.** Microphone plus system audio for Zoom / Meet / Teams. Microphone only for in-person 1:1s. Timestamped notes while it runs. Searchable library. Markdown export.
-- **Transcribe and summarize on the Mac.** WhisperKit or Apple SpeechAnalyzer for the transcript. Optional Apple Intelligence summaries, or your own OpenAI / Anthropic key, or a local server (Ollama / LM Studio). Summaries are optional. A transcript still lands with nothing configured.
+- **Hold-to-talk dictation.** Hold or double-tap a chord (Control-Option by default; you can rebind it). Speech-to-text runs on this Mac.
+- **Record a meeting.** Microphone plus system audio, or microphone only. Timestamped notes while it runs. Searchable library. Markdown export.
+- **Transcribe and summarize on the Mac.** WhisperKit or Apple SpeechAnalyzer for the transcript. Summaries are optional: Apple Intelligence, a key you paste, or a local server you point at. A transcript still lands with nothing configured.
 - **Tag the calendar.** Copper reads Apple Calendar. Add Google or Outlook in System Settings → Internet Accounts. There is no Google login in the app. Mark Default / Record / Skip per event or series.
 
 ![Calendar](docs/screenshots/calendar-demo.png)
@@ -57,7 +57,7 @@ No Copper account. No transcript upload we operate.
 
 ![Summaries](docs/screenshots/settings-summaries.png)
 
-*Apple Intelligence on-device, or your own OpenAI / Anthropic key. Ollama and LM Studio work as a local server.*
+*Apple Intelligence on-device, or a key you paste. A local server URL is an option.*
 
 ![Transcription](docs/screenshots/settings-transcription.png)
 
@@ -65,7 +65,7 @@ No Copper account. No transcript upload we operate.
 
 ![General](docs/screenshots/settings.png)
 
-*Auto-record follows Settings. Calendar tags override it for the day.*
+*Calendar tags and recording settings live here.*
 
 ## Requirements
 
@@ -81,7 +81,7 @@ git clone https://github.com/chitownjk/copper.git
 cd copper
 xcodebuild -project MeetingCompanion.xcodeproj -scheme MeetingNotes \
   -configuration Release -derivedDataPath .dd build
-open .dd/Build/Products/Release/MeetingNotes.app
+open .dd/Build/Products/Release/Copper.app
 ```
 
 Or open `MeetingCompanion.xcworkspace` in Xcode and Run.
@@ -92,10 +92,15 @@ Data lives in `~/Library/Application Support/MeetingNotes/`.
 
 ## Status
 
-Daily driver. Dictation, recording, calendar tags, summaries, and Copper Camera (logo, blur, 5-second loop, name card) are in this tree.
+Signed [v0.1.2](https://github.com/chitownjk/copper/releases/tag/v0.1.2) is the current cut. Product Hunt / Release builds check GitHub Releases for updates.
 
-Download a signed build from [Releases](https://github.com/chitownjk/copper/releases), or build from source below.
+Cleared: free, no account or word cap; local recording, transcription, notes, search, and export; WhisperKit and Apple Speech options; optional summaries; Copper Camera live, Camera Off loop/still/card, “Record this?”, Record now (walk-in, no calendar), and listen-back on the mix.
+
+Held: insert into Mail, Gmail, Slack, Notes, and TextEdit as a matrix; calendar auto-record on a real event; live Anthropic, OpenAI, Ollama, and LM Studio.
 
 ## License
 
-MIT. Use it. Fork it. Do not pay for the local loop.
+MIT. Use it. Fork it. See [LICENSE](LICENSE).
+
+See [Copper privacy](PRIVACY.md) and
+[third-party notices](THIRD_PARTY_NOTICES.md).

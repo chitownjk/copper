@@ -21,6 +21,12 @@ struct MeetingNotesApp: App {
                 }
                 .keyboardShortcut(",")
             }
+            CommandGroup(after: .appSettings) {
+                Button("Check for Updates…") {
+                    UpdateController.shared.checkForUpdates()
+                }
+                .disabled(!UpdateController.shared.canCheckForUpdates)
+            }
             CommandMenu("Meeting") {
                 if appState.status == .recording {
                     Button("Stop Recording") {
@@ -70,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if !headless {
             showWhenReady(attempts: 15)
+            UpdateController.shared.startIfAppropriate(headless: false)
         }
     }
 

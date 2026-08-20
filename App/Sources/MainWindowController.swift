@@ -22,11 +22,12 @@ final class MainWindowController {
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1080, height: 680),
-            styleMask: [.titled, .closable, .resizable, .miniaturizable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Copper"
+        window.titlebarAppearsTransparent = false
         window.isReleasedWhenClosed = false
         window.center()
         window.contentView = NSHostingView(rootView: MainWindowView().environment(appState))

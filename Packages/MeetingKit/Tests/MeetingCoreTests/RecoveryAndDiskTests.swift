@@ -101,6 +101,61 @@ final class RecordingArtifactsTests: XCTestCase {
         ], outputURL: output)
         XCTAssertEqual(try AVAudioFile(forReading: output).length, 32_000)
     }
+
+    func testVerifiedMixDropsStems() throws {
+        _ = try writeWAV("mic.wav", seconds: 0.5)
+        _ = try writeWAV("system.wav", seconds: 0.5)
+        _ = try writeWAV("mixed.wav", seconds: 0.4)
+
+        XCTAssertTrue(RecordingArtifacts.isMixVerified(in: dir))
+        XCTAssertTrue(RecordingArtifacts.hasUsableStems(in: dir))
+        let before = RecordingArtifacts.audioBytes(in: dir)
+        XCTAssertGreaterThan(before, 0)
+
+        XCTAssertTrue(RecordingArtifacts.dropStemsIfMixVerified(in: dir))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: RecordingArtifacts.micURL(in: dir).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: RecordingArtifacts.systemURL(in: dir).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: RecordingArtifacts.mixedURL(in: dir).path))
+        XCTAssertTrue(RecordingArtifacts.isMixVerified(in: dir))
+        XCTAssertFalse(RecordingArtifacts.hasUsableStems(in: dir))
+        // audioBytes still counts the remaining mix (and would still have
+        // counted leftover stems had they not been dropped).
+        XCTAssertGreaterThan(RecordingArtifacts.audioBytes(in: dir), 0)
+        XCTAssertLessThan(RecordingArtifacts.audioBytes(in: dir), before)
+        // Second pass is a no-op.
+        XCTAssertFalse(RecordingArtifacts.dropStemsIfMixVerified(in: dir))
+    }
+
+    func testUnverifiedMissingMixKeepsStems() throws {
+        _ = try writeWAV("mic.wav", seconds: 0.5)
+        _ = try writeWAV("system.wav", seconds: 0.5)
+
+        XCTAssertFalse(RecordingArtifacts.isMixVerified(in: dir))
+        XCTAssertTrue(RecordingArtifacts.hasUsableStems(in: dir))
+        XCTAssertFalse(RecordingArtifacts.dropStemsIfMixVerified(in: dir))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: RecordingArtifacts.micURL(in: dir).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: RecordingArtifacts.systemURL(in: dir).path))
+    }
+
+    func testEmptyCorruptMixedDoesNotDropStems() throws {
+        _ = try writeWAV("mic.wav", seconds: 0.5)
+        _ = try writeWAV("system.wav", seconds: 0.5)
+
+        // Header-sized file: not more than a WAV header.
+        try Data(repeating: 0, count: RecordingArtifacts.wavHeaderByteCount)
+            .write(to: RecordingArtifacts.mixedURL(in: dir))
+        XCTAssertFalse(RecordingArtifacts.isMixVerified(in: dir))
+        XCTAssertFalse(RecordingArtifacts.dropStemsIfMixVerified(in: dir))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: RecordingArtifacts.micURL(in: dir).path))
+
+        // Larger than a header but not a real WAV — AVAudioFile must fail.
+        try Data(repeating: 0xFF, count: 512)
+            .write(to: RecordingArtifacts.mixedURL(in: dir))
+        XCTAssertFalse(RecordingArtifacts.isMixVerified(in: dir))
+        XCTAssertFalse(RecordingArtifacts.dropStemsIfMixVerified(in: dir))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: RecordingArtifacts.micURL(in: dir).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: RecordingArtifacts.systemURL(in: dir).path))
+    }
 }
 
 final class DiskSpaceTests: XCTestCase {

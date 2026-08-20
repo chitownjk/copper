@@ -10,7 +10,7 @@ public enum AudioMixError: Error, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .noUsableInput:
-            return "No audio was recorded — both tracks are missing or empty."
+            return "No audio was recorded — the tracks are missing or empty."
         case .unsupportedFormat(let url):
             return "Unsupported audio format in \(url.lastPathComponent)."
         case .conversionFailed(let url, let underlying):

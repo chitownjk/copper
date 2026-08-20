@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  package-tests:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test MeetingKit
+        run: swift test --package-path Packages/MeetingKit
+
+  release-rehearsal:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate release scripts
+        run: bash -n Scripts/release.sh Scripts/verify-release.sh
+      - name: Build and verify unsigned release rehearsal
+        run: Scripts/release.sh --rehearsal "$RUNNER_TEMP/CopperRelease"

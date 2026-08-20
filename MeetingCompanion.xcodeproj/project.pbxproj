@@ -11,6 +11,7 @@
 		AA00000000000000000000E2 /* MeetingProviders in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000F2 /* MeetingProviders */; };
 		AA00000000000000000000E3 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000F3 /* GRDB */; };
 		AA00000000000000000000E4 /* CompanionVideoCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000F4 /* CompanionVideoCore */; };
+		AA00000000000000000000E7 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000F5 /* Sparkle */; };
 		BB00000000000000000000E6 /* com.strongrise.meetingcompanion.cameraextension.systemextension in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = BB00000000000000000000A6 /* com.strongrise.meetingcompanion.cameraextension.systemextension */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -39,7 +40,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		AA00000000000000000000A4 /* MeetingNotes.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MeetingNotes.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA00000000000000000000A4 /* MeetingNotes.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = MeetingNotes.app; path = Copper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB00000000000000000000A6 /* com.strongrise.meetingcompanion.cameraextension.systemextension */ = {isa = PBXFileReference; explicitFileType = "wrapper.system-extension"; includeInIndex = 0; path = com.strongrise.meetingcompanion.cameraextension.systemextension; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -66,6 +67,7 @@
 				AA00000000000000000000E2 /* MeetingProviders in Frameworks */,
 				AA00000000000000000000E3 /* GRDB in Frameworks */,
 				AA00000000000000000000E4 /* CompanionVideoCore in Frameworks */,
+				AA00000000000000000000E7 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -123,6 +125,7 @@
 				AA00000000000000000000F2 /* MeetingProviders */,
 				AA00000000000000000000F3 /* GRDB */,
 				AA00000000000000000000F4 /* CompanionVideoCore */,
+				AA00000000000000000000F5 /* Sparkle */,
 			);
 			productName = MeetingNotes;
 			productReference = AA00000000000000000000A4 /* MeetingNotes.app */;
@@ -175,6 +178,7 @@
 			packageReferences = (
 				AA0000000000000000000011 /* XCLocalSwiftPackageReference "Packages/MeetingKit" */,
 				AA0000000000000000000012 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				AA0000000000000000000013 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = AA00000000000000000000A2 /* Products */;
@@ -278,7 +282,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = GJPMXXQTWN;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -287,7 +291,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.strongrise.meetingcompanion;
 				PRODUCT_NAME = Copper;
 				SWIFT_VERSION = 5.0;
@@ -302,7 +306,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = GJPMXXQTWN;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -311,7 +315,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.strongrise.meetingcompanion;
 				PRODUCT_NAME = Copper;
 				SWIFT_VERSION = 5.0;
@@ -404,6 +408,14 @@
 				minimumVersion = 6.29.0;
 			};
 		};
+		AA0000000000000000000013 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = exactVersion;
+				version = 2.9.6;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -423,6 +435,11 @@
 		AA00000000000000000000F4 /* CompanionVideoCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = CompanionVideoCore;
+		};
+		AA00000000000000000000F5 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0000000000000000000013 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

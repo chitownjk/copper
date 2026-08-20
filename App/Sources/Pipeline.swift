@@ -44,12 +44,35 @@ actor Pipeline {
     private func runStages(meetingId: String) async throws {
         let meeting = try await fetchMeeting(meetingId)
         let dir = URL(fileURLWithPath: meeting.audioDir)
-        let systemURL = dir.appendingPathComponent("system.wav")
-        let micURL = dir.appendingPathComponent("mic.wav")
-        let mixedURL = dir.appendingPathComponent("mixed.wav")
+        let systemURL = RecordingArtifacts.systemURL(in: dir)
+        let micURL = RecordingArtifacts.micURL(in: dir)
+        let mixedURL = RecordingArtifacts.mixedURL(in: dir)
 
-        try await setStatus(meetingId, .mixing)
-        try await AudioMixer.mix(systemURL: systemURL, micURL: micURL, outputURL: mixedURL)
+        // AudioMixer.mix deletes outputURL then remakes it from stems. If the
+        // stems are already gone and we rematch, a good mix is destroyed and
+        // mix() throws noUsableInput. Skip rematch when only a verified mix
+        // remains (Retry / crash recovery after stem drop).
+        let mixVerified = RecordingArtifacts.isMixVerified(in: dir)
+        let stemsPresent = RecordingArtifacts.hasUsableStems(in: dir)
+        if mixVerified && !stemsPresent {
+            // Transcribe the existing mix. Do not touch mixed.wav.
+        } else {
+            try await setStatus(meetingId, .mixing)
+            // Instant / mic-only meetings have no system.wav. Passing a
+            // missing URL is fine (mixer skips it), but only feed stems
+            // that actually have PCM so a leftover empty stub cannot
+            // confuse the "no usable input" path.
+            var inputs: [URL] = []
+            if RecordingArtifacts.isUsableWAV(micURL) { inputs.append(micURL) }
+            if RecordingArtifacts.isUsableWAV(systemURL) { inputs.append(systemURL) }
+            if inputs.isEmpty {
+                throw AudioMixError.noUsableInput
+            }
+            try await AudioMixer.mix(inputs: inputs, outputURL: mixedURL)
+            // Mix threw? stems stay. Verified? drop immediately — do not wait
+            // for transcription.
+            RecordingArtifacts.dropStemsIfMixVerified(in: dir)
+        }
 
         try await setStatus(meetingId, .transcribing)
         let rawSegments = try await engine.transcribe(

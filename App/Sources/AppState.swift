@@ -30,7 +30,6 @@ final class AppState {
     var pendingLibraryMeetingId: String?
 
     private var observationTask: Task<Void, Never>?
-    private let notesPanel = NotesPanelController()
     @ObservationIgnored private var statusItem: StatusItemController?
     let calendar = CalendarService()
     private(set) var autoRecorder: AutoRecorder!
@@ -41,6 +40,7 @@ final class AppState {
     @ObservationIgnored private var lastSyncedVirtualClaimed = false
     @ObservationIgnored private var wasVideoCallForHUD = false
     @ObservationIgnored private var dismissedRecordOfferThisCall = false
+    @ObservationIgnored private var userDismissedHUDThisCall = false
 
     /// Yes / Not now row on the combined camera HUD. Hidden after dismiss,
     /// once recording, or when a calendar-tagged meeting is already armed.
@@ -63,10 +63,16 @@ final class AppState {
         } else {
             Task { await CrashRecoveryPrompt.runIfNeeded() }
         }
-        Task { await RetentionSweeper.sweepIfDue() }
+        Task {
+            // Stem drop is not gated on the daily sweep — leftover mic/system
+            // WAVs on already-mixed meetings should go on this launch.
+            await RetentionSweeper.dropLeftoverStems()
+            await RetentionSweeper.sweepIfDue()
+        }
         handleCameraExtensionFlags()
         handleCameraSinkPushFlag()
         handleCameraPassthroughFlag()
+        handleCameraModeSwitchProbeFlag()
         // `--go-live`: start the persistent virtual-camera feed at launch and
         // keep running. Covers the case where the menu bar is too crowded to
         // reach our icon while a camera app is frontmost.
@@ -101,6 +107,7 @@ final class AppState {
                 || $0.hasPrefix("--uninstall-camera-extension")
                 || $0.hasPrefix("--push-camera-frames")
                 || $0.hasPrefix("--camera-passthrough")
+                || $0 == "--camera-mode-switch-probe"
         }
         if !headless {
             cameraUse.attach(
@@ -191,6 +198,25 @@ final class AppState {
         }
     }
 
+    /// Runs the real HUD controller path and asserts that no accepted live
+    /// frame reaches the sink after Camera Off becomes the final selection.
+    private func handleCameraModeSwitchProbeFlag() {
+        guard ProcessInfo.processInfo.arguments.contains("--camera-mode-switch-probe") else { return }
+        Task { @MainActor in
+            do {
+                let result = try await CameraModeSwitchProbe().run()
+                print(
+                    "camera mode switch: passed — live before \(result.liveFramesBeforeSwitch), "
+                        + "off after \(result.offFramesAfterSwitch), "
+                        + "stale live after \(result.staleLiveFramesAfterSwitch)"
+                )
+            } catch {
+                print("camera mode switch: failed — \(error.localizedDescription)")
+            }
+            NSApp.terminate(nil)
+        }
+    }
+
     private func subscribePipelineNotifications() {
         let nc = NotificationCenter.default
         nc.addObserver(forName: .pipelineDidComplete, object: nil, queue: .main) { note in
@@ -238,7 +264,6 @@ final class AppState {
     private func showOnboardingIfFirstLaunch() {
         let defaults = UserDefaults.standard
         if !defaults.bool(forKey: Self.didFirstLaunchKey) {
-            defaults.set(true, forKey: Self.didFirstLaunchKey)
             // Defer to next runloop so the menu bar exists first.
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 200_000_000)
@@ -249,6 +274,10 @@ final class AppState {
 
     func openOnboarding() {
         onboarding.show()
+    }
+
+    func completeOnboarding() {
+        UserDefaults.standard.set(true, forKey: Self.didFirstLaunchKey)
     }
 
     func openSettings(tab: SettingsTab = .general) {
@@ -286,13 +315,22 @@ final class AppState {
     func dismissMeetingRecord() {
         dismissedRecordOfferThisCall = true
         shouldOfferMeetingRecord = false
-        if isVideoCallForHUD {
+        if isVideoCallForHUD && !userDismissedHUDThisCall {
             cameraHUD.show(appState: self)
         }
     }
 
+    func dismissCameraHUD() {
+        userDismissedHUDThisCall = true
+        shouldOfferMeetingRecord = false
+        cameraHUD.hide()
+    }
+
+    /// In-call only. Pre-warming Camera Off at launch starts the sink;
+    /// a sticky physical CMIO bit is also not a call.
     private var isVideoCallForHUD: Bool {
         if ScreenLock.isLocked { return false }
+        guard MeetingCallDetector.isInACall() else { return false }
         return virtualCameraClaimed || cameraUse.physicalCameraInUse
     }
 
@@ -308,20 +346,21 @@ final class AppState {
         if !videoCall && wasVideoCallForHUD {
             dismissedRecordOfferThisCall = false
             shouldOfferMeetingRecord = false
+            userDismissedHUDThisCall = false
         }
         if status == .recording || status == .armed {
             shouldOfferMeetingRecord = false
         }
         wasVideoCallForHUD = videoCall
 
-        if videoCall {
+        if videoCall && !userDismissedHUDThisCall {
             cameraHUD.show(appState: self)
             if claimed && !didAutoStartFeedThisClaim && !camera.isLive {
                 didAutoStartFeedThisClaim = true
                 Task { await camera.goLive() }
             }
         } else {
-            cameraHUD.hide()
+            cameraHUD.hideCamera()
         }
 
         // Only unclaim / meeting end stops the feed. Camera-off during a
@@ -376,14 +415,21 @@ final class AppState {
             currentSession = session
             status = .recording
             lastError = nil
-            notesPanel.show(
+            cameraHUD.showNotes(
+                appState: self,
                 meetingId: session.meeting.id,
                 recordingStart: session.meeting.startedAt
             )
             let subtitle: String?
-            switch request.capture {
-            case .micAndSystem: subtitle = request.title
-            case .micOnly: subtitle = "Microphone only"
+            switch session.capture {
+            case .micAndSystem:
+                subtitle = request.title
+            case .micOnly:
+                if let reason = session.systemAudioFallbackReason {
+                    subtitle = "Microphone only — system audio unavailable: \(reason)"
+                } else {
+                    subtitle = "Microphone only"
+                }
             }
             ToastPresenter.shared.show(.info, title: "Recording started", subtitle: subtitle)
         } catch {
@@ -405,7 +451,7 @@ final class AppState {
         guard let session = currentSession else { return }
         let meetingId = session.meeting.id
 
-        await notesPanel.hide()
+        await cameraHUD.hideNotes()
 
         do {
             try await session.stop()

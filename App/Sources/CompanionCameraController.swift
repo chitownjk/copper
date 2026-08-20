@@ -4,6 +4,43 @@ import CoreMedia
 import Observation
 import CompanionVideoCore
 
+/// Synchronizes the two frame-queue consumers that are configured by the
+/// main-actor controller and invoked by capture/timer queues.
+private final class CameraFrameRelay: @unchecked Sendable {
+    private let lock = NSLock()
+    private var preview: ((CMSampleBuffer) -> Void)?
+    private var recorder: CameraLoopRecorder?
+    private var sourceObserver: ((CameraFrameSource) -> Void)?
+
+    var previewConsumer: ((CMSampleBuffer) -> Void)? {
+        get { lock.withLock { preview } }
+        set { lock.withLock { preview = newValue } }
+    }
+
+    var loopRecorder: CameraLoopRecorder? {
+        get { lock.withLock { recorder } }
+        set { lock.withLock { recorder = newValue } }
+    }
+
+    var frameSourceConsumer: ((CameraFrameSource) -> Void)? {
+        get { lock.withLock { sourceObserver } }
+        set { lock.withLock { sourceObserver = newValue } }
+    }
+
+    func appendToLoop(_ pixelBuffer: CVPixelBuffer, presentationTime: CMTime) {
+        let currentRecorder: CameraLoopRecorder? = lock.withLock { self.recorder }
+        currentRecorder?.append(pixelBuffer, presentationTime: presentationTime)
+    }
+
+    func deliverPreview(_ sampleBuffer: CMSampleBuffer, source: CameraFrameSource) {
+        let consumers: (((CMSampleBuffer) -> Void)?, ((CameraFrameSource) -> Void)?) =
+            lock.withLock { (self.preview, self.sourceObserver) }
+        let currentPreview = consumers.0
+        currentPreview?(sampleBuffer)
+        consumers.1?(source)
+    }
+}
+
 /// Owns the persistent go-live feed: real camera (or camera-off frames) →
 /// FrameComposer → sink stream → virtual camera. This is the product path —
 /// the timed `--camera-passthrough` probe remains only as a dev affordance.
@@ -104,19 +141,34 @@ final class CompanionCameraController {
     private var sink: CameraSinkClient?
     private var offSource: CameraOffFrameSource?
     private var offPump: DispatchSourceTimer?
+    private var sourceTransitionTask: Task<Void, Never>?
+    private var sourceTransitionRevision: UInt64 = 0
     private let offPumpQueue = DispatchQueue(
         label: "com.strongrise.meetingcompanion.camera-off",
         qos: .userInteractive
     )
     private let composer = FrameComposer()
+    private let sourceGeneration = FrameSourceGeneration()
+    @ObservationIgnored private let frameRelay = CameraFrameRelay()
 
     /// Preview tee: receives every composed sample buffer that reached the
     /// sink. Called on the capture / off-pump queue — consumers must be
     /// thread-safe (AVSampleBufferDisplayLayer's renderer is).
-    nonisolated(unsafe) var previewConsumer: ((CMSampleBuffer) -> Void)?
+    var previewConsumer: ((CMSampleBuffer) -> Void)? {
+        get { frameRelay.previewConsumer }
+        set { frameRelay.previewConsumer = newValue }
+    }
 
     /// Live-capture tee for a 5s loop recording. Capture-queue only.
-    nonisolated(unsafe) var loopRecorder: CameraLoopRecorder?
+    private var loopRecorder: CameraLoopRecorder? {
+        get { frameRelay.loopRecorder }
+        set { frameRelay.loopRecorder = newValue }
+    }
+
+    var frameSourceConsumer: ((CameraFrameSource) -> Void)? {
+        get { frameRelay.frameSourceConsumer }
+        set { frameRelay.frameSourceConsumer = newValue }
+    }
 
     nonisolated static let logoDefaultsKey = "videoLogoPath"
     nonisolated static let logoSizeDefaultsKey = "videoLogoSize"
@@ -167,21 +219,18 @@ final class CompanionCameraController {
 
     func goLive() async {
         guard state != .live else { return }
-        do {
-            let sink = CameraSinkClient()
-            try sink.connect()
-            self.sink = sink
-            // Fill the 1-2s before the camera's first frame so Meet never
-            // sees the extension test card (bars on the still-running v8).
-            pushPlaceholder(to: sink)
-            try await startSource(for: outputMode)
-            state = .live
-        } catch {
-            tearDownLive(failed: error.localizedDescription)
+        if let inFlight = sourceTransitionTask {
+            await inFlight.value
+            if state == .live { return }
         }
+        let transition = scheduleSourceTransition(for: outputMode)
+        await transition.value
     }
 
     func stopLive() {
+        sourceTransitionTask?.cancel()
+        sourceTransitionTask = nil
+        sourceTransitionRevision &+= 1
         stopSource()
         sink?.disconnect()
         sink = nil
@@ -191,10 +240,8 @@ final class CompanionCameraController {
     func setOutputMode(_ mode: OutputMode) {
         outputMode = mode
         UserDefaults.standard.set(mode.rawValue, forKey: Self.outputModeDefaultsKey)
-        if state == .live {
-            Task { await restartSourceKeepingSink() }
-        } else if case .failed = state {
-            Task { await goLive() }
+        if state == .live || sink != nil || sourceTransitionTask != nil {
+            scheduleSourceTransition(for: mode)
         }
     }
 
@@ -202,9 +249,13 @@ final class CompanionCameraController {
     /// pushing so Meet never falls back to the extension TestCard.
     func applyOutputMode(_ mode: OutputMode) {
         setOutputMode(mode)
-        if state != .live {
+        if state != .live, sourceTransitionTask == nil {
             Task { await goLive() }
         }
+    }
+
+    func waitForSourceTransition() async {
+        await sourceTransitionTask?.value
     }
 
     func setLoop(from url: URL) {
@@ -315,15 +366,63 @@ final class CompanionCameraController {
 
     // MARK: - Source switching
 
-    private func restartSourceKeepingSink() async {
+    @discardableResult
+    private func scheduleSourceTransition(for mode: OutputMode) -> Task<Void, Never> {
+        sourceTransitionTask?.cancel()
+        sourceTransitionRevision &+= 1
+        let revision = sourceTransitionRevision
+
+        // Invalidate and stop the old producer synchronously with the HUD
+        // selection. This prevents any queued live callback from winning the
+        // race before the transition task gets its main-actor turn.
         stopSource()
+        if mode == .off, let sink {
+            // Replace the final physical-camera frame before loop discovery or
+            // decoding can block. The off pump will overwrite this immediately.
+            pushPlaceholder(to: sink)
+        }
+
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.performSourceTransition(to: mode, revision: revision)
+        }
+        sourceTransitionTask = task
+        return task
+    }
+
+    private func performSourceTransition(to mode: OutputMode, revision: UInt64) async {
+        guard transitionIsCurrent(revision, mode: mode) else { return }
         do {
-            try await startSource(for: outputMode)
+            if sink == nil {
+                let sink = CameraSinkClient()
+                try sink.connect()
+                guard transitionIsCurrent(revision, mode: mode) else {
+                    sink.disconnect()
+                    return
+                }
+                self.sink = sink
+                // Fill startup before the selected producer emits its first frame.
+                pushPlaceholder(to: sink)
+            }
+            if mode == .off, let sink {
+                pushPlaceholder(to: sink)
+            }
+            try await startSource(for: mode, revision: revision)
+            guard transitionIsCurrent(revision, mode: mode) else { return }
+            state = .live
+        } catch is CancellationError {
+            return
         } catch {
+            guard transitionIsCurrent(revision, mode: mode) else { return }
             tearDownLive(failed: error.localizedDescription)
         }
     }
 
+    private func transitionIsCurrent(_ revision: UInt64, mode: OutputMode) -> Bool {
+        !Task.isCancelled
+            && sourceTransitionRevision == revision
+            && outputMode == mode
+    }
 
     private func pushPlaceholder(to sink: CameraSinkClient) {
         let card = CameraOffCard.makePixelBuffer(title: offCardTitle, subtitle: offCardSubtitle)
@@ -335,19 +434,25 @@ final class CompanionCameraController {
         }
     }
 
-    private func startSource(for mode: OutputMode) async throws {
+    private func startSource(for mode: OutputMode, revision: UInt64) async throws {
         switch mode {
         case .live:
             guard await CameraCaptureService.requestAccess() else {
                 throw CameraCaptureService.CaptureError.cameraAccessDenied
             }
+            try Task.checkCancellation()
+            guard transitionIsCurrent(revision, mode: mode) else { throw CancellationError() }
             try startCapture()
         case .off:
+            try Task.checkCancellation()
+            guard transitionIsCurrent(revision, mode: mode) else { throw CancellationError() }
             startOffStatePump()
         }
     }
 
     private func stopSource() {
+        sourceGeneration.invalidate()
+        capture?.onFrame = nil
         capture?.stop()
         capture = nil
         offPump?.cancel()
@@ -369,15 +474,19 @@ final class CompanionCameraController {
         }
         let capture = CameraCaptureService()
         let composer = self.composer
-        capture.onFrame = { [weak self] sampleBuffer in
+        let frameRelay = self.frameRelay
+        let generation = sourceGeneration.activate(.live)
+        let sourceGeneration = self.sourceGeneration
+        capture.onFrame = { [weak sink] sampleBuffer in
+            guard sourceGeneration.routes(.live, token: generation), let sink else { return }
             guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer),
                   let composed = composer.compose(pixelBuffer) else { return }
-            self?.loopRecorder?.append(
+            frameRelay.appendToLoop(
                 composed,
                 presentationTime: CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
             )
             if let pushed = sink.pushPixelBuffer(composed) {
-                self?.previewConsumer?(pushed)
+                frameRelay.deliverPreview(pushed, source: .live)
             }
         }
         try capture.start(excludingUniqueID: CameraSinkClient.deviceUID)
@@ -387,7 +496,10 @@ final class CompanionCameraController {
     private func startOffStatePump() {
         guard let sink else { return }
         let composer = self.composer
+        let frameRelay = self.frameRelay
         let passThroughLoop = loopIsPrecomposed
+        let generation = sourceGeneration.activate(.cameraOff)
+        let sourceGeneration = self.sourceGeneration
         let source = CameraOffFrameSource(
             loopURL: loopURL,
             stillURL: stillURL,
@@ -395,13 +507,14 @@ final class CompanionCameraController {
             cardSubtitle: offCardSubtitle
         )
         offSource = source
-        let push = { [weak self] in
+        let push = {
+            guard sourceGeneration.routes(.cameraOff, token: generation) else { return }
             guard let pixelBuffer = source.nextPixelBuffer() else { return }
             let effects: FrameComposer.Effects =
                 (passThroughLoop && source.isServingLoop) ? .passthrough : .overlayOnly
             guard let composed = composer.compose(pixelBuffer, effects: effects) else { return }
             if let pushed = sink.pushPixelBuffer(composed) {
-                self?.previewConsumer?(pushed)
+                frameRelay.deliverPreview(pushed, source: .cameraOff)
             }
         }
         push()
@@ -414,13 +527,12 @@ final class CompanionCameraController {
 
     private func reloadOffSourceIfNeeded() {
         guard state == .live, outputMode == .off else { return }
-        let previousPump = offPump
-        let previousSource = offSource
+        sourceGeneration.invalidate()
+        offPump?.cancel()
+        offSource?.stop()
         offPump = nil
         offSource = nil
         startOffStatePump()
-        previousPump?.cancel()
-        previousSource?.stop()
     }
 
     /// Applies a logo file immediately (including mid-stream) and records

@@ -177,9 +177,11 @@ final class SettingsModel {
 
     // MARK: Storage
 
-    var retentionPolicy: RetentionPolicy {
-        get { RetentionSettings.policy }
-        set { RetentionSettings.policy = newValue }
+    /// Stored so the radio publishes immediately. A UserDefaults
+    /// passthrough wrote the value but left the Picker looking stale
+    /// until the window was closed and reopened.
+    var retentionPolicy: RetentionPolicy = RetentionSettings.policy {
+        didSet { RetentionSettings.policy = retentionPolicy }
     }
 
     var audioBytes: Int64 = 0
@@ -197,6 +199,7 @@ final class SettingsModel {
         localServerModel = LocalServerProvider.modelName
         modelManager.refresh()
         modelBytes = modelManager.totalInstalledBytes
+        retentionPolicy = RetentionSettings.policy
         await refreshProviders()
         await refreshStorage()
     }

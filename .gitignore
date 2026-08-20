@@ -4,6 +4,7 @@
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/
 DerivedData/
+/build/
 
 # macOS
 .DS_Store
@@ -49,3 +50,19 @@ docs/brand/
 
 # Pre-migration leftover at repo root only
 /Tests/
+
+# Sparkle EdDSA private keys and generate_appcast leftovers.
+# The private key lives in ~/.config/copper/sparkle/ed25519-private (outside git).
+# appcast.xml is a signed release artifact uploaded to GitHub Releases, not source of truth.
+ed25519-private
+**/ed25519-private
+ed25519-public
+**/ed25519-public
+appcast.xml
+**/appcast.xml
+Sparkle_generate_appcast/
+.sparkle/
+
+
+# Internal launch notes — not for the public repo
+LAUNCH_HANDOFF.md

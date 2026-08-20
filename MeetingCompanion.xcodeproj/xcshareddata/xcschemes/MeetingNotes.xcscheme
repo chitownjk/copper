@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "AA00000000000000000000B2"
-               BuildableName = "MeetingNotes.app"
+               BuildableName = "Copper.app"
                BlueprintName = "MeetingNotes"
                ReferencedContainer = "container:MeetingCompanion.xcodeproj">
             </BuildableReference>
@@ -44,7 +44,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "AA00000000000000000000B2"
-            BuildableName = "MeetingNotes.app"
+            BuildableName = "Copper.app"
             BlueprintName = "MeetingNotes"
             ReferencedContainer = "container:MeetingCompanion.xcodeproj">
          </BuildableReference>
@@ -61,7 +61,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "AA00000000000000000000B2"
-            BuildableName = "MeetingNotes.app"
+            BuildableName = "Copper.app"
             BlueprintName = "MeetingNotes"
             ReferencedContainer = "container:MeetingCompanion.xcodeproj">
          </BuildableReference>

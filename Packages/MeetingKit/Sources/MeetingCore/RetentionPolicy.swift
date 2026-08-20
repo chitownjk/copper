@@ -1,10 +1,12 @@
 import Foundation
 
-/// How long raw audio is kept after a meeting is transcribed (PRD A7).
+/// How long the mixed listen-back recording is kept after a meeting is
+/// transcribed (PRD A7).
 ///
 /// Transcripts, notes, and summaries are never swept — they're small and they
-/// are the product. This governs the WAV files only. Dual 48 kHz Float32
-/// tracks plus a mixdown are gigabytes for a long meeting, not megabytes.
+/// are the product. Raw mic/system tracks are deleted as soon as the mix
+/// verifies, so this governs mixed.wav only (~100 MB per hour), not gigabytes
+/// of capture stems.
 public enum RetentionPolicy: String, CaseIterable, Identifiable, Sendable {
     case days30
     case afterTranscription
@@ -23,11 +25,11 @@ public enum RetentionPolicy: String, CaseIterable, Identifiable, Sendable {
     public var detail: String {
         switch self {
         case .days30:
-            return "Default. Transcripts, notes, and summaries stay. Audio — often gigabytes per long meeting — is removed after 30 days."
+            return "Default. Transcripts, notes, and summaries stay. The mixed recording — about 100 MB per hour — is removed after 30 days. Raw tracks are already gone once the mix checks out."
         case .afterTranscription:
-            return "Most aggressive. The existing daily sweep deletes audio as soon as the meeting is transcribed, so a 45-minute recording does not sit on disk. You will not be able to re-transcribe or play it back."
+            return "Most aggressive. The existing daily sweep deletes the mixed recording as soon as the meeting is transcribed, so listen-back does not sit on disk. You will not be able to re-transcribe or play it back."
         case .forever:
-            return "Nothing is deleted automatically. Audio is large: a 45-minute meeting can be several gigabytes."
+            return "Nothing is deleted automatically. Retention applies only to the mixed recording (~100 MB per hour); raw tracks are deleted after the mix checks out."
         }
     }
 

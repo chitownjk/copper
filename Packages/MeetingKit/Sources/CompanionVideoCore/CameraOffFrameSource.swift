@@ -25,6 +25,8 @@ public final class CameraOffFrameSource: @unchecked Sendable {
     private var stillBuffer: CVPixelBuffer?
     private var fallbackCard: CVPixelBuffer?
     private var loopFailed = false
+    private var loopLoadStarted = false
+    private var stopped = false
 
     public init(loopURL: URL?, stillURL: URL?, cardTitle: String = "", cardSubtitle: String = "") {
         self.loopURL = loopURL
@@ -41,10 +43,18 @@ public final class CameraOffFrameSource: @unchecked Sendable {
     public func nextPixelBuffer() -> CVPixelBuffer? {
         lock.lock()
         defer { lock.unlock() }
-        if let frame = pullOneLoopFrame() {
+        if asset == nil, !loopFailed, !loopLoadStarted, !stopped, let loopURL {
+            loopLoadStarted = true
+            Task.detached(priority: .userInitiated) { [weak self] in
+                await self?.loadLoop(at: loopURL)
+            }
+        }
+        if asset != nil, let frame = pullOneLoopFrame() {
             lastVideoBuffer = frame
             return frame
         }
+        // Never block Camera Off on AVAsset track discovery. The card/still is
+        // served immediately while the loop loads in a detached task.
         return lastVideoBuffer ?? stillBuffer ?? fallbackCard
     }
 
@@ -57,6 +67,7 @@ public final class CameraOffFrameSource: @unchecked Sendable {
 
     public func stop() {
         lock.lock()
+        stopped = true
         reader?.cancelReading()
         reader = nil
         readerOutput = nil
@@ -69,9 +80,6 @@ public final class CameraOffFrameSource: @unchecked Sendable {
     deinit { stop() }
 
     private func pullOneLoopFrame() -> CVPixelBuffer? {
-        if asset == nil && !loopFailed {
-            openLoopIfNeeded()
-        }
         guard asset != nil else { return nil }
         if let buffer = copyNextSurface() {
             return buffer
@@ -81,29 +89,38 @@ public final class CameraOffFrameSource: @unchecked Sendable {
         return copyNextSurface()
     }
 
-    private func openLoopIfNeeded() {
-        guard let loopURL, FileManager.default.fileExists(atPath: loopURL.path) else {
-            loopFailed = true
+    private func loadLoop(at loopURL: URL) async {
+        guard FileManager.default.fileExists(atPath: loopURL.path) else {
+            lock.withLock { loopFailed = true }
             return
         }
         let asset = AVURLAsset(url: loopURL)
-        let sem = DispatchSemaphore(value: 0)
-        asset.loadValuesAsynchronously(forKeys: ["tracks"]) { sem.signal() }
-        _ = sem.wait(timeout: .now() + 2)
-        guard let track = asset.tracks(withMediaType: .video).first else {
-            Self.logger.error("loop has no video track \(loopURL.lastPathComponent, privacy: .public)")
-            loopFailed = true
+        let tracks: [AVAssetTrack]
+        do {
+            tracks = try await asset.loadTracks(withMediaType: .video)
+        } catch {
+            Self.logger.error("could not load loop tracks: \(error.localizedDescription, privacy: .public)")
+            lock.withLock { loopFailed = true }
             return
         }
-        self.asset = asset
-        self.videoTrack = track
-        if openReader() {
-            Self.logger.info("looping \(loopURL.lastPathComponent, privacy: .public) at pump rate")
-        } else {
-            Self.logger.error("could not open loop reader \(loopURL.lastPathComponent, privacy: .public)")
-            self.asset = nil
-            self.videoTrack = nil
-            loopFailed = true
+        guard let track = tracks.first else {
+            Self.logger.error("loop has no video track \(loopURL.lastPathComponent, privacy: .public)")
+            lock.withLock { loopFailed = true }
+            return
+        }
+
+        lock.withLock {
+            guard !stopped else { return }
+            self.asset = asset
+            self.videoTrack = track
+            if openReader() {
+                Self.logger.info("looping \(loopURL.lastPathComponent, privacy: .public) at pump rate")
+            } else {
+                Self.logger.error("could not open loop reader \(loopURL.lastPathComponent, privacy: .public)")
+                self.asset = nil
+                self.videoTrack = nil
+                loopFailed = true
+            }
         }
     }
 

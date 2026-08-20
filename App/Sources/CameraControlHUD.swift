@@ -2,48 +2,120 @@ import AppKit
 import SwiftUI
 import CompanionVideoCore
 import UniformTypeIdentifiers
+import Observation
 
-/// In-call camera controls. Shown while Meet/Zoom/Teams has Meeting
-/// Companion Camera claimed, or a physical camera is in use the way the
-/// old "Record this?" prompt used to fire. Must not steal key focus from
-/// the meeting app except when a text field is actually being edited.
+enum MeetingHUDTab: String, CaseIterable, Identifiable {
+    case camera
+    case notes
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .camera: return "Camera"
+        case .notes: return "Notes"
+        }
+    }
+}
+
+@MainActor
+@Observable
+final class MeetingHUDModel {
+    var tab: MeetingHUDTab = .camera
+    var notes: NotesController?
+    var showsCamera = false
+
+    var showsNotes: Bool { notes != nil }
+    var showsTabs: Bool { showsCamera && showsNotes }
+}
+
+/// In-call camera + notes. One floating box, Camera / Notes tabs.
+/// Shown while Meet/Zoom/Teams has Copper Camera claimed, a physical
+/// camera is in use, or a recording is taking notes. Must not steal
+/// key focus from the meeting app except when a field is being edited.
 @MainActor
 final class CameraControlHUD {
     private var panel: NonActivatingHUDPanel?
     private var host: NSHostingView<AnyView>?
     private weak var appState: AppState?
     private var hideGeneration = 0
+    private let model = MeetingHUDModel()
 
     func show(appState: AppState) {
         hideGeneration += 1
         self.appState = appState
-        let root = AnyView(CameraControlHUDView().environment(appState))
+        model.showsCamera = true
+        if !model.showsNotes {
+            model.tab = .camera
+        }
+        present(appState: appState)
+    }
+
+    func showNotes(appState: AppState, meetingId: String, recordingStart: Date) {
+        hideGeneration += 1
+        self.appState = appState
+        model.notes = NotesController(meetingId: meetingId, recordingStart: recordingStart)
+        model.tab = .notes
+        present(appState: appState)
+    }
+
+    func hideNotes() async {
+        if let notes = model.notes {
+            await notes.flush()
+        }
+        model.notes = nil
+        if model.showsCamera {
+            model.tab = .camera
+            if let appState {
+                present(appState: appState)
+            }
+        } else {
+            hidePanel()
+        }
+    }
+
+    /// Camera call ended. Keep the box if notes are still live.
+    func hideCamera() {
+        model.showsCamera = false
+        if model.showsNotes {
+            model.tab = .notes
+            if let appState {
+                present(appState: appState)
+            }
+        } else {
+            hidePanel()
+        }
+    }
+
+    func hide() {
+        hideCamera()
+    }
+
+    private func present(appState: AppState) {
+        let root = AnyView(MeetingHUDView(model: model).environment(appState))
+        let size = panelSize(for: appState)
         if let host {
             host.rootView = root
-            let size = NSSize(width: 348, height: appState.shouldOfferMeetingRecord ? 472 : 400)
             host.frame.size = size
-            if let panel, panel.frame.size != size {
-                var frame = panel.frame
-                let top = frame.maxY
-                frame.size = size
-                frame.origin.y = top - size.height
-                panel.setFrame(frame, display: true)
-            }
-            if panel?.isVisible != true {
-                position(panel)
-                panel?.orderFrontRegardless()
+            if let panel {
+                growIfNeeded(panel, to: size)
+                if panel.isVisible != true {
+                    position(panel)
+                    panel.orderFrontRegardless()
+                }
             }
             return
         }
 
         let host = NSHostingView(rootView: root)
-        let size = NSSize(width: 348, height: appState.shouldOfferMeetingRecord ? 472 : 400)
+        host.frame.size = size
         let panel = NonActivatingHUDPanel(
             contentRect: NSRect(origin: .zero, size: size),
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: [.borderless, .nonactivatingPanel, .resizable],
             backing: .buffered,
             defer: false
         )
+        panel.minSize = NSSize(width: 320, height: 280)
         panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.isOpaque = false
@@ -64,7 +136,7 @@ final class CameraControlHUD {
         }
     }
 
-    func hide() {
+    private func hidePanel() {
         guard let panel else { return }
         hideGeneration += 1
         let generation = hideGeneration
@@ -77,8 +149,43 @@ final class CameraControlHUD {
                 guard self.hideGeneration == generation else { return }
                 self.panel = nil
                 self.host = nil
+                self.model.showsCamera = false
+                self.model.notes = nil
             }
         })
+    }
+
+    private func cameraBodyHeight(for appState: AppState) -> CGFloat {
+        let recordOffer: CGFloat = appState.shouldOfferMeetingRecord ? 72 : 0
+        let sourceWarning: CGFloat =
+            (!appState.virtualCameraClaimed && appState.cameraUse.physicalCameraInUse) ? 56 : 0
+        return 400 + recordOffer + sourceWarning
+    }
+
+    private func panelSize(for appState: AppState) -> NSSize {
+        let tabs: CGFloat = model.showsTabs ? 36 : 0
+        if model.tab == .notes {
+            return NSSize(width: 360, height: 520 + tabs)
+        }
+        return NSSize(width: 360, height: cameraBodyHeight(for: appState) + tabs)
+    }
+
+    private func growIfNeeded(_ panel: NSPanel, to size: NSSize) {
+        var frame = panel.frame
+        var changed = false
+        if frame.width < size.width {
+            frame.size.width = size.width
+            changed = true
+        }
+        if frame.height < size.height {
+            let top = frame.maxY
+            frame.size.height = size.height
+            frame.origin.y = top - size.height
+            changed = true
+        }
+        if changed {
+            panel.setFrame(frame, display: true)
+        }
     }
 
     private func position(_ panel: NSPanel?) {
@@ -97,12 +204,86 @@ private final class NonActivatingHUDPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+struct MeetingHUDView: View {
+    @Environment(AppState.self) private var appState
+    @Bindable var model: MeetingHUDModel
+
+    private var closeButton: some View {
+        Button {
+            appState.dismissCameraHUD()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.secondary)
+                .padding(5)
+                .background(Color.primary.opacity(0.08), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .help("Close")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if model.showsTabs {
+                tabBar
+                Divider().opacity(0.35)
+            }
+            Group {
+                if model.tab == .notes, let notes = model.notes {
+                    NotesPanelView(controller: notes)
+                } else {
+                    CameraControlHUDView()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Brand.accent.opacity(0.35), lineWidth: 0.8)
+        )
+    }
+
+    private var tabBar: some View {
+        HStack(spacing: 2) {
+            ForEach(MeetingHUDTab.allCases) { tab in
+                let enabled = (tab == .camera && model.showsCamera) || (tab == .notes && model.showsNotes)
+                Button {
+                    if enabled { model.tab = tab }
+                } label: {
+                    Text(tab.label)
+                        .font(.system(size: 12, weight: model.tab == tab ? .semibold : .medium))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(
+                            model.tab == tab
+                                ? Brand.accent.opacity(0.18)
+                                : Color.clear,
+                            in: Capsule()
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(!enabled)
+                .opacity(enabled ? 1 : 0.35)
+            }
+            Spacer(minLength: 0)
+            closeButton
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+    }
+}
+
 struct CameraControlHUDView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
+            if showsPhysicalCameraWarning {
+                physicalCameraWarning
+            }
             if appState.shouldOfferMeetingRecord {
                 meetingRecordRow
                 Divider().opacity(0.35)
@@ -116,12 +297,7 @@ struct CameraControlHUDView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .frame(width: 348, height: appState.shouldOfferMeetingRecord ? 472 : 400, alignment: .top)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Brand.accent.opacity(0.35), lineWidth: 0.8)
-        )
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 
     private var header: some View {
@@ -135,17 +311,52 @@ struct CameraControlHUDView: View {
             Text("Meeting camera")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            closeButton
         }
+    }
+
+    private var closeButton: some View {
+        Button {
+            appState.dismissCameraHUD()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.secondary)
+                .padding(5)
+                .background(Color.primary.opacity(0.08), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .help("Close")
     }
 
     private var statusTitle: String {
         if appState.camera.isRecordingLoop {
             return "Recording loop"
         }
+        if case .failed = appState.camera.state {
+            return "Copper Camera unavailable"
+        }
         switch appState.camera.outputMode {
         case .live: return appState.camera.isLive ? "Live" : "Standby"
         case .off: return "Camera off"
         }
+    }
+
+    private var showsPhysicalCameraWarning: Bool {
+        !appState.virtualCameraClaimed && appState.cameraUse.physicalCameraInUse
+    }
+
+    private var physicalCameraWarning: some View {
+        Label {
+            Text("This call is using another camera. Select **Copper Camera** in Meet or Zoom to show this output.")
+                .font(.caption)
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "video.badge.exclamationmark")
+                .foregroundStyle(Brand.accent)
+        }
+        .padding(8)
+        .background(Brand.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 7))
     }
 
     private var statusColor: Color {

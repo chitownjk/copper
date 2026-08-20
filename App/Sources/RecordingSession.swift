@@ -25,6 +25,8 @@ struct RecordingRequest {
 
     static let manual = RecordingRequest()
     static let cameraPrompt = RecordingRequest(source: "camera-prompt", capture: .micAndSystem)
+    /// Walk-in / no calendar / no Zoom. Mic only — system audio is for calls.
+    static let instant = RecordingRequest(title: "Instant meeting", source: "instant", capture: .micOnly)
 
     static func calendar(_ event: UpcomingEvent, capture: RecordingCapture) -> RecordingRequest {
         RecordingRequest(
@@ -38,12 +40,22 @@ struct RecordingRequest {
 
 final class RecordingSession {
     let meeting: Meeting
+    let capture: RecordingCapture
+    let systemAudioFallbackReason: String?
     private let mic: MicRecorder
     private let system: SystemAudioRecorder?
     private var diskWatchdog: Task<Void, Never>?
 
-    private init(meeting: Meeting, mic: MicRecorder, system: SystemAudioRecorder?) {
+    private init(
+        meeting: Meeting,
+        capture: RecordingCapture,
+        systemAudioFallbackReason: String?,
+        mic: MicRecorder,
+        system: SystemAudioRecorder?
+    ) {
         self.meeting = meeting
+        self.capture = capture
+        self.systemAudioFallbackReason = systemAudioFallbackReason
         self.mic = mic
         self.system = system
     }
@@ -93,39 +105,89 @@ final class RecordingSession {
             audioDir: dir.path,
             status: MeetingStatus.recording.rawValue
         )
-        try await Database.shared.write { db in
-            var insertable = row
-            try insertable.insert(db)
-        }
-
-        let mic = try MicRecorder(outputURL: dir.appendingPathComponent("mic.wav"))
-        try mic.start()
-
+        var mic: MicRecorder?
         var system: SystemAudioRecorder?
-        if request.capture == .micAndSystem {
-            let recorder = SystemAudioRecorder(outputURL: dir.appendingPathComponent("system.wav"))
-            try await recorder.start()
-            system = recorder
-        }
+        do {
+            try await Database.shared.write { db in
+                var insertable = row
+                try insertable.insert(db)
+            }
 
-        let session = RecordingSession(meeting: meeting, mic: mic, system: system)
-        session.startDiskWatchdog()
-        return session
+            let recorder = try MicRecorder(outputURL: dir.appendingPathComponent("mic.wav"))
+            mic = recorder
+            try recorder.start()
+
+            var actualCapture = request.capture
+            var fallbackReason: String?
+            if request.capture == .micAndSystem {
+                let systemRecorder = SystemAudioRecorder(
+                    outputURL: dir.appendingPathComponent("system.wav")
+                )
+                do {
+                    try await systemRecorder.start()
+                    system = systemRecorder
+                } catch {
+                    // A denied Screen Recording permission must not make the
+                    // microphone recording disappear. Continue transparently
+                    // as mic-only and tell the user exactly what was lost.
+                    actualCapture = .micOnly
+                    fallbackReason = error.localizedDescription
+                }
+            }
+
+            let session = RecordingSession(
+                meeting: meeting,
+                capture: actualCapture,
+                systemAudioFallbackReason: fallbackReason,
+                mic: recorder,
+                system: system
+            )
+            session.startDiskWatchdog()
+            return session
+        } catch {
+            // Startup is transactional: never leave a hot microphone, orphan
+            // database row, or empty recording directory after a failed start.
+            if let system {
+                try? await system.stop()
+            }
+            mic?.stop()
+            _ = try? await Database.shared.write { db in
+                try MeetingRow.deleteOne(db, key: id)
+            }
+            try? FileManager.default.removeItem(at: dir)
+            throw error
+        }
     }
 
     func stop() async throws {
         diskWatchdog?.cancel()
         diskWatchdog = nil
-        try await system?.stop()
+
+        var firstError: Error?
+        do {
+            try await system?.stop()
+        } catch {
+            firstError = error
+        }
+        // Never let a ScreenCaptureKit shutdown error keep the mic recording.
         mic.stop()
 
         let endedAt = Date().timeIntervalSince1970
         let id = meeting.id
-        try await Database.shared.write { db in
-            try db.execute(
-                sql: "UPDATE meetings SET ended_at = ? WHERE id = ?",
-                arguments: [endedAt, id]
-            )
+        do {
+            try await Database.shared.write { db in
+                try db.execute(
+                    sql: "UPDATE meetings SET ended_at = ? WHERE id = ?",
+                    arguments: [endedAt, id]
+                )
+            }
+        } catch {
+            if firstError == nil {
+                firstError = error
+            }
+        }
+        if let firstError {
+            throw firstError
         }
     }
 }

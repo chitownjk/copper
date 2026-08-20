@@ -13,15 +13,44 @@ enum RetentionSweeper {
     }
 
     /// Called at launch and after each pipeline run. No-ops unless a day has
-    /// passed and the policy actually deletes something.
+    /// passed and the policy actually deletes something. Leftover stems are
+    /// dropped even when the daily gate is not due — they are not retention.
     @discardableResult
     static func sweepIfDue(now: Date = Date()) async -> Result {
+        await dropLeftoverStems()
         guard RetentionSettings.policy.maximumAge != nil, RetentionSettings.isSweepDue(now: now) else {
             return Result()
         }
         let result = await sweep(now: now)
         RetentionSettings.lastSweep = now
         return result
+    }
+
+    /// Walks ready meetings and deletes mic.wav / system.wav wherever a
+    /// verified mix already exists. Independent of the daily retention gate
+    /// so existing meetings that still hold capture stems are reclaimed on
+    /// the next launch.
+    @discardableResult
+    static func dropLeftoverStems() async -> Int {
+        let meetings: [MeetingRow]
+        do {
+            meetings = try await Database.shared.read { db in
+                try MeetingRow
+                    .filter(Column("status") == MeetingStatus.ready.rawValue)
+                    .fetchAll(db)
+            }
+        } catch {
+            print("Leftover-stem drop failed to read meetings: \(error)")
+            return 0
+        }
+        var dropped = 0
+        for meeting in meetings {
+            let directory = URL(fileURLWithPath: meeting.audioDir)
+            if RecordingArtifacts.dropStemsIfMixVerified(in: directory) {
+                dropped += 1
+            }
+        }
+        return dropped
     }
 
     /// Runs regardless of the daily gate — used by the "Delete audio now"

@@ -32,9 +32,20 @@ final class OnboardingWindowController {
         window.title = "Copper"
         window.isReleasedWhenClosed = false
         window.center()
-        window.contentView = NSHostingView(rootView: OnboardingView(checks: checks))
+        window.contentView = NSHostingView(
+            rootView: OnboardingView(
+                checks: checks,
+                onFinish: { [weak self] in self?.finish() },
+                onSkip: { [weak self] in self?.finish() }
+            )
+        )
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         self.window = window
+    }
+
+    private func finish() {
+        appState?.completeOnboarding()
+        window?.close()
     }
 }

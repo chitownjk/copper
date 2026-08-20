@@ -5,15 +5,19 @@ struct LibraryView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
-        NavigationSplitView {
+        // Not a nested NavigationSplitView — that collapses the
+        // Calendar/Library sidebar when a meeting is selected.
+        HSplitView {
             sidebar
-                .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 360)
-        } detail: {
-            if let meeting = model.selectedMeeting {
-                MeetingDetailView(model: model, meeting: meeting)
-            } else {
-                emptyDetail
+                .frame(minWidth: 240, idealWidth: 280, maxWidth: 360)
+            Group {
+                if let meeting = model.selectedMeeting {
+                    MeetingDetailView(model: model, meeting: meeting)
+                } else {
+                    emptyDetail
+                }
             }
+            .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -72,7 +76,9 @@ struct LibraryView: View {
                     }
                 }
             }
-            .listStyle(.sidebar)
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color(nsColor: .windowBackgroundColor))
         }
     }
 
